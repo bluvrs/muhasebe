@@ -38,7 +38,7 @@ class MembersFrame(tk.Frame):
         self.entry_password.grid(row=1, column=1, sticky="ew", padx=(8, 20))
 
         tk.Label(form, text="Rol").grid(row=0, column=2, sticky="w")
-        self.role_combo = ttk.Combobox(form, values=["admin", "kasiyer", "muhasebe", "uye"], state="readonly")
+        self.role_combo = ttk.Combobox(form, values=["admin", "kasiyer", "muhasebe", "yonetici", "uye"], state="readonly")
         self.role_combo.grid(row=0, column=3, sticky="w")
 
         form.columnconfigure(1, weight=1)

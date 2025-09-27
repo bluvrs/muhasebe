@@ -3,6 +3,23 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
+from typing import Tuple
+try:
+    from products import ProductsFrame
+except Exception:
+    ProductsFrame = None  # type: ignore[assignment]
+try:
+    from reports import ReportsFrame
+except Exception:
+    ReportsFrame = None  # type: ignore[assignment]
+try:
+    from ledger import LedgerFrame
+except Exception:
+    LedgerFrame = None  # type: ignore[assignment]
+try:
+    from sales import SalesFrame
+except Exception:
+    SalesFrame = None  # type: ignore[assignment]
 
 DB_NAME = "coop.db"
 
@@ -18,6 +35,54 @@ def init_db() -> None:
             username TEXT UNIQUE,
             password TEXT,
             role TEXT
+        )
+        """
+    )
+    # Basic products table for inventory
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            barcode TEXT UNIQUE,
+            price REAL NOT NULL DEFAULT 0,
+            stock REAL NOT NULL DEFAULT 0,
+            unit TEXT NOT NULL DEFAULT 'adet'
+        )
+        """
+    )
+    # Simple ledger table for income (gelir) and outcome (gider)
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL DEFAULT (date('now')),
+            type TEXT NOT NULL CHECK(type IN ('gelir','gider')),
+            amount REAL NOT NULL,
+            description TEXT
+        )
+        """
+    )
+    # Sales header and lines
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL DEFAULT (datetime('now')),
+            total REAL NOT NULL
+        )
+        """
+    )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sale_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sale_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            quantity REAL NOT NULL,
+            price REAL NOT NULL,
+            FOREIGN KEY(sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+            FOREIGN KEY(product_id) REFERENCES products(id)
         )
         """
     )
@@ -49,6 +114,7 @@ class App(tk.Tk):
             "admin": AdminFrame,
             "kasiyer": CashierFrame,
             "muhasebe": AccountingFrame,
+            "yonetici": ManagerFrame,
             "uye": MemberFrame,
         }
 
@@ -174,10 +240,25 @@ class RoleFrame(tk.Frame):
 
 class AdminFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Uye yonetimi", "Gelir/Gider kaydi", "Raporlar"]
-        handlers = {
+        actions = ["Uye yonetimi", "Urun yonetimi", "Gelir/Gider kaydi", "Raporlar"]
+        handlers: Dict[str, Callable[[], None]] = {
             "Uye yonetimi": lambda: controller.show_frame(MembersFrame),
         }
+        # Add product management if available
+        if ProductsFrame is not None:
+            handlers["Urun yonetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Urun yonetimi"] = lambda: controller.show_placeholder("Urun yonetimi")
+        # Ledger (income/outcome)
+        if LedgerFrame is not None:
+            handlers["Gelir/Gider kaydi"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Gelir/Gider kaydi"] = lambda: controller.show_placeholder("Gelir/Gider kaydi")
+        # Reports
+        if ReportsFrame is not None:
+            handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
         super().__init__(parent, controller, "Admin Panel", actions, handlers)
 
 
@@ -185,7 +266,14 @@ class CashierFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
         description = "Barkod okutun ve islemleri tamamlayin."
         actions = ["Yeni satis", "Iade islemi"]
-        super().__init__(parent, controller, "Kasiyer Ekrani", actions, None, description)
+        handlers: Dict[str, Callable[[], None]] = {}
+        if SalesFrame is not None:
+            handlers["Yeni satis"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Yeni satis"] = lambda: controller.show_placeholder("Yeni satis")
+        # Keep returns as placeholder for now
+        handlers["Iade islemi"] = lambda: controller.show_placeholder("Iade islemi")
+        super().__init__(parent, controller, "Kasiyer Ekrani", actions, handlers, description)
 
 
 class AccountingFrame(RoleFrame):
@@ -199,6 +287,25 @@ class MemberFrame(RoleFrame):
         description = "Kardan dusen payinizi ve gecmis islemleri inceleyin."
         actions = ["Pay goruntule", "Ekstre al"]
         super().__init__(parent, controller, "Uye Paneli", actions, None, description)
+
+
+class ManagerFrame(RoleFrame):
+    def __init__(self, parent: tk.Misc, controller: App) -> None:
+        actions = ["Urun yonetimi", "Gelir/Gider kaydi", "Raporlar"]
+        handlers: Dict[str, Callable[[], None]] = {}
+        if ProductsFrame is not None:
+            handlers["Urun yonetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Urun yonetimi"] = lambda: controller.show_placeholder("Urun yonetimi")
+        if LedgerFrame is not None:
+            handlers["Gelir/Gider kaydi"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Gelir/Gider kaydi"] = lambda: controller.show_placeholder("Gelir/Gider kaydi")
+        if ReportsFrame is not None:
+            handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
+        super().__init__(parent, controller, "Yonetici Paneli", actions, handlers)
 
 
 if __name__ == "__main__":
