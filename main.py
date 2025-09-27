@@ -20,6 +20,10 @@ try:
     from sales import SalesFrame
 except Exception:
     SalesFrame = None  # type: ignore[assignment]
+try:
+    from investors import InvestorsFrame
+except Exception:
+    InvestorsFrame = None  # type: ignore[assignment]
 
 DB_NAME = "coop.db"
 
@@ -86,6 +90,44 @@ def init_db() -> None:
         )
         """
     )
+    # Investors for tracking initial capital
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS investors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            initial_capital REAL NOT NULL DEFAULT 0,
+            initial_date TEXT NOT NULL DEFAULT (date('now')),
+            notes TEXT
+        )
+        """
+    )
+    # Investor transactions: contributions and withdrawals
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS investor_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            investor_id INTEGER NOT NULL,
+            date TEXT NOT NULL DEFAULT (date('now')),
+            type TEXT NOT NULL CHECK(type IN ('contribution','withdrawal')),
+            amount REAL NOT NULL,
+            notes TEXT,
+            FOREIGN KEY(investor_id) REFERENCES investors(id) ON DELETE CASCADE
+        )
+        """
+    )
+    # Settings KV store
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        """
+    )
+    # Default investor pool percent to 20 if not set
+    cursor.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('investor_pool_percent','20')")
     cursor.execute("SELECT 1 FROM users WHERE username = ?", ("admin",))
     if not cursor.fetchone():
         cursor.execute(
@@ -240,7 +282,7 @@ class RoleFrame(tk.Frame):
 
 class AdminFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Uye yonetimi", "Urun yonetimi", "Gelir/Gider kaydi", "Raporlar"]
+        actions = ["Uye yonetimi", "Urun yonetimi", "Gelir/Gider kaydi", "Yatirimcilar", "Raporlar"]
         handlers: Dict[str, Callable[[], None]] = {
             "Uye yonetimi": lambda: controller.show_frame(MembersFrame),
         }
@@ -254,6 +296,11 @@ class AdminFrame(RoleFrame):
             handlers["Gelir/Gider kaydi"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
         else:
             handlers["Gelir/Gider kaydi"] = lambda: controller.show_placeholder("Gelir/Gider kaydi")
+        # Investors
+        if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
+            handlers["Yatirimcilar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Yatirimcilar"] = lambda: controller.show_placeholder("Yatirimcilar")
         # Reports
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
@@ -291,7 +338,7 @@ class MemberFrame(RoleFrame):
 
 class ManagerFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Urun yonetimi", "Gelir/Gider kaydi", "Raporlar"]
+        actions = ["Urun yonetimi", "Gelir/Gider kaydi", "Yatirimcilar", "Raporlar"]
         handlers: Dict[str, Callable[[], None]] = {}
         if ProductsFrame is not None:
             handlers["Urun yonetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
@@ -301,6 +348,10 @@ class ManagerFrame(RoleFrame):
             handlers["Gelir/Gider kaydi"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
         else:
             handlers["Gelir/Gider kaydi"] = lambda: controller.show_placeholder("Gelir/Gider kaydi")
+        if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
+            handlers["Yatirimcilar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Yatirimcilar"] = lambda: controller.show_placeholder("Yatirimcilar")
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
         else:
