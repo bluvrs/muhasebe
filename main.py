@@ -17,9 +17,10 @@ try:
 except Exception:
     LedgerFrame = None  # type: ignore[assignment]
 try:
-    from sales import SalesFrame
+    from sales import SalesFrame, ReturnFrame
 except Exception:
     SalesFrame = None  # type: ignore[assignment]
+    ReturnFrame = None  # type: ignore[assignment]
 try:
     from investors import InvestorsFrame
 except Exception:
@@ -331,7 +332,7 @@ class RoleFrame(tk.Frame):
                     handler = lambda name=action: controller.show_placeholder(name)
                 tk.Button(self, text=action, command=handler).pack(fill="x", padx=60, pady=5)
 
-        tk.Button(self, text="Cikis yap", command=self.controller.logout).pack(pady=30)
+        tk.Button(self, text="Çıkış yap", command=self.controller.logout).pack(pady=30)
 
     def on_show(self, username: str, role: str) -> None:
         self.user_label.config(text="Signed in as {} ({})".format(username, role))
@@ -339,25 +340,25 @@ class RoleFrame(tk.Frame):
 
 class AdminFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Uye yonetimi", "Urun yonetimi", "Gelir/Gider kaydi", "Yatirimcilar", "Raporlar"]
+        actions = ["Üye yönetimi", "Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar"]
         handlers: Dict[str, Callable[[], None]] = {
-            "Uye yonetimi": lambda: controller.show_frame(MembersFrame),
+            "Üye yönetimi": lambda: controller.show_frame(MembersFrame),
         }
         # Add product management if available
         if ProductsFrame is not None:
-            handlers["Urun yonetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
+            handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
         else:
-            handlers["Urun yonetimi"] = lambda: controller.show_placeholder("Urun yonetimi")
+            handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
         # Ledger (income/outcome)
         if LedgerFrame is not None:
-            handlers["Gelir/Gider kaydi"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
+            handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
         else:
-            handlers["Gelir/Gider kaydi"] = lambda: controller.show_placeholder("Gelir/Gider kaydi")
+            handlers["Gelir/Gider kaydı"] = lambda: controller.show_placeholder("Gelir/Gider kaydı")
         # Investors
         if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
-            handlers["Yatirimcilar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
+            handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
         else:
-            handlers["Yatirimcilar"] = lambda: controller.show_placeholder("Yatirimcilar")
+            handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
         # Reports
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
@@ -368,52 +369,55 @@ class AdminFrame(RoleFrame):
 
 class CashierFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        description = "Barkod okutun ve islemleri tamamlayin."
-        actions = ["Yeni satis", "Iade islemi"]
+        description = "Barkod okutun ve işlemleri tamamlayın."
+        actions = ["Yeni satış", "İade işlemi"]
         handlers: Dict[str, Callable[[], None]] = {}
         if SalesFrame is not None:
-            handlers["Yeni satis"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
+            handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
         else:
-            handlers["Yeni satis"] = lambda: controller.show_placeholder("Yeni satis")
+            handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
         # Keep returns as placeholder for now
-        handlers["Iade islemi"] = lambda: controller.show_placeholder("Iade islemi")
-        super().__init__(parent, controller, "Kasiyer Ekrani", actions, handlers, description)
+        if 'ReturnFrame' in globals() and ReturnFrame is not None:
+            handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
+        else:
+            handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
+        super().__init__(parent, controller, "Kasiyer Ekranı", actions, handlers, description)
 
 
 class AccountingFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Gelir girisi", "Gider girisi", "Bilanco"]
+        actions = ["Gelir girişi", "Gider girişi", "Bilanço"]
         super().__init__(parent, controller, "Muhasebe Paneli", actions)
 
 
 class MemberFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        description = "Kardan dusen payinizi ve gecmis islemleri inceleyin."
-        actions = ["Pay goruntule", "Ekstre al"]
-        super().__init__(parent, controller, "Uye Paneli", actions, None, description)
+        description = "Kârdan düşen payınızı ve geçmiş işlemleri inceleyin."
+        actions = ["Pay görüntüle", "Ekstre al"]
+        super().__init__(parent, controller, "Üye Paneli", actions, None, description)
 
 
 class ManagerFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Urun yonetimi", "Gelir/Gider kaydi", "Yatirimcilar", "Raporlar"]
+        actions = ["Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar"]
         handlers: Dict[str, Callable[[], None]] = {}
         if ProductsFrame is not None:
-            handlers["Urun yonetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
+            handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
         else:
-            handlers["Urun yonetimi"] = lambda: controller.show_placeholder("Urun yonetimi")
+            handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
         if LedgerFrame is not None:
-            handlers["Gelir/Gider kaydi"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
+            handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
         else:
-            handlers["Gelir/Gider kaydi"] = lambda: controller.show_placeholder("Gelir/Gider kaydi")
+            handlers["Gelir/Gider kaydı"] = lambda: controller.show_placeholder("Gelir/Gider kaydı")
         if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
-            handlers["Yatirimcilar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
+            handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
         else:
-            handlers["Yatirimcilar"] = lambda: controller.show_placeholder("Yatirimcilar")
+            handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
         else:
             handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
-        super().__init__(parent, controller, "Yonetici Paneli", actions, handlers)
+        super().__init__(parent, controller, "Yönetici Paneli", actions, handlers)
 
 
 if __name__ == "__main__":

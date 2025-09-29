@@ -2,6 +2,12 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
+from datetime import date
+try:
+    from tkcalendar import DateEntry as _DateEntry  # type: ignore
+except Exception:
+    _DateEntry = None  # type: ignore
+from ui import make_back_arrow
 
 DB_NAME = "coop.db"
 
@@ -11,12 +17,16 @@ class InvestorsFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        tk.Label(self, text="Yatirimcilar", font=("Arial", 16, "bold")).pack(pady=(20, 10))
+        header = tk.Frame(self)
+        header.pack(fill='x')
+        back = make_back_arrow(header, self.go_back)
+        back.pack(side='left', padx=(10,6), pady=(10,6))
+        tk.Label(header, text="Yatırımcılar", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
 
         # Pool percent setting
         pool = tk.Frame(self)
         pool.pack(fill="x", padx=20, pady=(0, 8))
-        tk.Label(pool, text="Yatirim Havuzu % (Ortakliga acik pay)").pack(side="left")
+        tk.Label(pool, text="Yatırım Havuzu % (Ortaklığa açık pay)").pack(side="left")
         self.entry_pool = tk.Entry(pool, width=6)
         self.entry_pool.pack(side="left", padx=(6, 6))
         tk.Button(pool, text="Kaydet", command=self.save_pool_percent).pack(side="left")
@@ -28,12 +38,12 @@ class InvestorsFrame(tk.Frame):
         columns = ("id", "name", "phone", "initial_capital", "current_capital", "pool_share_%", "shop_share_%", "initial_date")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
         self.tree.heading("id", text="ID")
-        self.tree.heading("name", text="Isim")
+        self.tree.heading("name", text="İsim")
         self.tree.heading("phone", text="Telefon")
-        self.tree.heading("initial_capital", text="Baslangic Sermayesi")
-        self.tree.heading("current_capital", text="Guncel Sermaye")
-        self.tree.heading("pool_share_%", text="Havuz Payi %")
-        self.tree.heading("shop_share_%", text="Dukkan Payi %")
+        self.tree.heading("initial_capital", text="Başlangıç Sermayesi")
+        self.tree.heading("current_capital", text="Güncel Sermaye")
+        self.tree.heading("pool_share_%", text="Havuz Payı %")
+        self.tree.heading("shop_share_%", text="Dükkan Payı %")
         self.tree.heading("initial_date", text="Tarih")
         self.tree.column("id", width=50, anchor="center")
         self.tree.column("name", width=220)
@@ -50,7 +60,7 @@ class InvestorsFrame(tk.Frame):
         form = tk.Frame(self)
         form.pack(fill="x", padx=20, pady=10)
 
-        tk.Label(form, text="Isim").grid(row=0, column=0, sticky="w")
+        tk.Label(form, text="İsim").grid(row=0, column=0, sticky="w")
         self.entry_name = tk.Entry(form)
         self.entry_name.grid(row=0, column=1, sticky="ew", padx=(6, 20))
 
@@ -58,12 +68,19 @@ class InvestorsFrame(tk.Frame):
         self.entry_phone = tk.Entry(form)
         self.entry_phone.grid(row=1, column=1, sticky="ew", padx=(6, 20))
 
-        tk.Label(form, text="Baslangic Sermayesi").grid(row=0, column=2, sticky="w")
+        tk.Label(form, text="Başlangıç Sermayesi").grid(row=0, column=2, sticky="w")
         self.entry_capital = tk.Entry(form)
         self.entry_capital.grid(row=0, column=3, sticky="ew", padx=(6, 20))
 
-        tk.Label(form, text="Tarih (YYYY-MM-DD)").grid(row=1, column=2, sticky="w")
-        self.entry_date = tk.Entry(form)
+        tk.Label(form, text="Tarih").grid(row=1, column=2, sticky="w")
+        if _DateEntry is not None:
+            self.entry_date = _DateEntry(form, date_pattern="yyyy-mm-dd", state="readonly")
+            try:
+                self.entry_date.set_date(date.today())
+            except Exception:
+                pass
+        else:
+            self.entry_date = tk.Entry(form)
         self.entry_date.grid(row=1, column=3, sticky="ew", padx=(6, 20))
 
         tk.Label(form, text="Notlar").grid(row=0, column=4, sticky="w")
@@ -80,17 +97,23 @@ class InvestorsFrame(tk.Frame):
         tk.Button(btns, text="Ekle", command=self.add_investor).pack(side="left")
         tk.Button(btns, text="Guncelle", command=self.update_investor).pack(side="left", padx=8)
         tk.Button(btns, text="Sil", command=self.delete_investor).pack(side="left")
-        tk.Button(btns, text="Geri", command=self.go_back).pack(side="right")
 
         # Transactions section
         sep = ttk.Separator(self, orient="horizontal")
         sep.pack(fill="x", padx=20, pady=(6, 6))
 
-        tk.Label(self, text="Yatirimci Islemleri", font=("Arial", 12, "bold")).pack(anchor="w", padx=20)
+        tk.Label(self, text="Yatırımcı İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w", padx=20)
         tx_form = tk.Frame(self)
         tx_form.pack(fill="x", padx=20)
         tk.Label(tx_form, text="Tarih").grid(row=0, column=0, sticky="w")
-        self.tx_date = tk.Entry(tx_form, width=12)
+        if _DateEntry is not None:
+            self.tx_date = _DateEntry(tx_form, date_pattern="yyyy-mm-dd", width=12, state="readonly")
+            try:
+                self.tx_date.set_date(date.today())
+            except Exception:
+                pass
+        else:
+            self.tx_date = tk.Entry(tx_form, width=12)
         self.tx_date.grid(row=0, column=1, sticky="w", padx=(6, 20))
         tk.Label(tx_form, text="Tutar").grid(row=0, column=2, sticky="w")
         self.tx_amount = tk.Entry(tx_form, width=12)
@@ -111,7 +134,7 @@ class InvestorsFrame(tk.Frame):
         for c, lbl, w, anc in (
             ("id", "ID", 50, "center"),
             ("date", "Tarih", 100, "w"),
-            ("type", "Tur", 120, "center"),
+            ("type", "Tür", 120, "center"),
             ("amount", "Tutar", 120, "e"),
             ("notes", "Not", 400, "w"),
         ):
@@ -122,7 +145,7 @@ class InvestorsFrame(tk.Frame):
         self.refresh()
 
     def on_show(self, **kwargs) -> None:
-        self.controller.title("Kooperatif - Yatirimcilar")
+        self.controller.title("Kooperatif - Yatırımcılar")
         self.refresh()
 
     # Helpers
@@ -240,12 +263,15 @@ class InvestorsFrame(tk.Frame):
         cur.execute("SELECT date('now')")
         today = cur.fetchone()[0]
         conn.close()
-        if not self.entry_date.get().strip():
-            self.entry_date.insert(0, today)
-        if not self.tx_date.get().strip():
-            self.tx_date.insert(0, today)
+        try:
+            if isinstance(self.entry_date, tk.Entry) and not self.entry_date.get().strip():
+                self.entry_date.insert(0, today)
+            if isinstance(self.tx_date, tk.Entry) and not self.tx_date.get().strip():
+                self.tx_date.insert(0, today)
+        except Exception:
+            pass
         # Update pool info label
-        self.lbl_pool_info.config(text=f"Toplam havuz: {pool_percent:.2f}%, Dukkan kalan: {100.0 - pool_percent:.2f}%")
+        self.lbl_pool_info.config(text=f"Toplam havuz: {pool_percent:.2f}%, Dükkan kalan: {100.0 - pool_percent:.2f}%")
 
     def add_investor(self) -> None:
         name = self.entry_name.get().strip()
@@ -254,10 +280,10 @@ class InvestorsFrame(tk.Frame):
         date = self.entry_date.get().strip() or None
         cap = self._parse_amount(self.entry_capital.get().strip() or "0")
         if not name:
-            messagebox.showwarning("Eksik bilgi", "Isim gerekli.")
+            messagebox.showwarning("Eksik bilgi", "İsim gerekli.")
             return
         if cap != cap or cap < 0:
-            messagebox.showwarning("Gecersiz tutar", "Gecersiz baslangic sermayesi.")
+            messagebox.showwarning("Geçersiz tutar", "Geçersiz başlangıç sermayesi.")
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -282,7 +308,7 @@ class InvestorsFrame(tk.Frame):
     def update_investor(self) -> None:
         iid = self._selected_id()
         if iid is None:
-            messagebox.showinfo("Secim yok", "Guncellenecek yatirimciyi secin.")
+            messagebox.showinfo("Seçim yok", "Güncellenecek yatırımcıyı seçin.")
             return
         name = self.entry_name.get().strip()
         phone = self.entry_phone.get().strip() or None
@@ -290,10 +316,10 @@ class InvestorsFrame(tk.Frame):
         date = self.entry_date.get().strip() or None
         cap = self._parse_amount(self.entry_capital.get().strip() or "0")
         if not name:
-            messagebox.showwarning("Eksik bilgi", "Isim gerekli.")
+            messagebox.showwarning("Eksik bilgi", "İsim gerekli.")
             return
         if cap != cap or cap < 0:
-            messagebox.showwarning("Gecersiz tutar", "Gecersiz baslangic sermayesi.")
+            messagebox.showwarning("Geçersiz tutar", "Geçersiz başlangıç sermayesi.")
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -311,9 +337,9 @@ class InvestorsFrame(tk.Frame):
     def delete_investor(self) -> None:
         iid = self._selected_id()
         if iid is None:
-            messagebox.showinfo("Secim yok", "Silinecek yatirimciyi secin.")
+            messagebox.showinfo("Seçim yok", "Silinecek yatırımcıyı seçin.")
             return
-        if not messagebox.askyesno("Onay", "Secili yatirimciyi silmek istiyor musunuz?"):
+        if not messagebox.askyesno("Onay", "Seçili yatırımcıyı silmek istiyor musunuz?"):
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -346,7 +372,7 @@ class InvestorsFrame(tk.Frame):
     def add_tx(self, typ: str) -> None:
         iid = self._selected_investor_id()
         if iid is None:
-            messagebox.showinfo("Secim yok", "Islem icin yatirimci secin.")
+            messagebox.showinfo("Seçim yok", "İşlem için yatırımcı seçin.")
             return
         date = self.tx_date.get().strip() or None
         try:
@@ -354,7 +380,7 @@ class InvestorsFrame(tk.Frame):
         except Exception:
             amt = float("nan")
         if amt != amt or amt <= 0:
-            messagebox.showwarning("Gecersiz tutar", "Pozitif bir tutar girin.")
+            messagebox.showwarning("Geçersiz tutar", "Pozitif bir tutar girin.")
             return
         notes = self.tx_notes.get().strip() or None
         conn = sqlite3.connect(DB_NAME)
@@ -379,10 +405,10 @@ class InvestorsFrame(tk.Frame):
     def delete_tx(self) -> None:
         sel = self.tx_tree.selection()
         if not sel:
-            messagebox.showinfo("Secim yok", "Silinecek islemi secin.")
+            messagebox.showinfo("Seçim yok", "Silinecek işlemi seçin.")
             return
         tid = int(self.tx_tree.item(sel[0], "values")[0])
-        if not messagebox.askyesno("Onay", "Secili islemi silmek istiyor musunuz?"):
+        if not messagebox.askyesno("Onay", "Seçili işlemi silmek istiyor musunuz?"):
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -400,7 +426,7 @@ class InvestorsFrame(tk.Frame):
         except Exception:
             val = float("nan")
         if val != val or val < 0 or val > 100:
-            messagebox.showwarning("Gecersiz deger", "Havuz % 0 ile 100 arasi olmalidir.")
+            messagebox.showwarning("Geçersiz değer", "Havuz % 0 ile 100 arası olmalıdır.")
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()

@@ -2,6 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
+from ui import make_back_arrow
 
 DB_NAME = "coop.db"
 
@@ -11,7 +12,11 @@ class ProductsFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        tk.Label(self, text="Urun Yonetimi", font=("Arial", 16, "bold")).pack(pady=(20, 10))
+        header = tk.Frame(self)
+        header.pack(fill='x')
+        back = make_back_arrow(header, self.go_back)
+        back.pack(side='left', padx=(10,6), pady=(10,6))
+        tk.Label(header, text="Ürün Yönetimi", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
 
         # Search
         search_bar = tk.Frame(self)
@@ -26,7 +31,7 @@ class ProductsFrame(tk.Frame):
         columns = ("id", "name", "barcode", "price", "cost", "stock", "unit")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
         self.tree.heading("id", text="ID")
-        self.tree.heading("name", text="Isim")
+        self.tree.heading("name", text="İsim")
         self.tree.heading("barcode", text="Barkod")
         self.tree.heading("price", text="Fiyat")
         self.tree.heading("cost", text="Maliyet")
@@ -46,7 +51,7 @@ class ProductsFrame(tk.Frame):
         form = tk.Frame(self)
         form.pack(fill="x", padx=20, pady=10)
 
-        tk.Label(form, text="Isim").grid(row=0, column=0, sticky="w")
+        tk.Label(form, text="İsim").grid(row=0, column=0, sticky="w")
         self.entry_name = tk.Entry(form)
         self.entry_name.grid(row=0, column=1, sticky="ew", padx=(8, 20))
 
@@ -80,12 +85,11 @@ class ProductsFrame(tk.Frame):
         tk.Button(btns, text="Ekle", command=self.add_product).pack(side="left")
         tk.Button(btns, text="Guncelle", command=self.update_product).pack(side="left", padx=8)
         tk.Button(btns, text="Sil", command=self.delete_product).pack(side="left")
-        tk.Button(btns, text="Geri", command=self.go_back).pack(side="right")
 
         self.refresh()
 
     def on_show(self, **kwargs) -> None:
-        self.controller.title("Kooperatif - Urun Yonetimi")
+        self.controller.title("Kooperatif - Ürün Yönetimi")
         self.refresh()
 
     # --- Helpers ---
@@ -162,7 +166,7 @@ class ProductsFrame(tk.Frame):
         unit = (self.combo_unit.get() or "adet").strip()
 
         if not name:
-            messagebox.showwarning("Eksik bilgi", "Isim gerekli.")
+            messagebox.showwarning("Eksik bilgi", "İsim gerekli.")
             return
         try:
             conn = sqlite3.connect(DB_NAME)
@@ -173,7 +177,7 @@ class ProductsFrame(tk.Frame):
             )
             conn.commit()
         except sqlite3.IntegrityError:
-            messagebox.showerror("Hata", "Barkod benzersiz olmalidir.")
+            messagebox.showerror("Hata", "Barkod benzersiz olmalıdır.")
         finally:
             conn.close()
             self.refresh()
@@ -181,7 +185,7 @@ class ProductsFrame(tk.Frame):
     def update_product(self) -> None:
         pid = self._selected_id()
         if pid is None:
-            messagebox.showinfo("Secim yok", "Guncellenecek urunu secin.")
+            messagebox.showinfo("Seçim yok", "Güncellenecek ürünü seçin.")
             return
         name = self.entry_name.get().strip()
         barcode = self.entry_barcode.get().strip() or None
@@ -190,7 +194,7 @@ class ProductsFrame(tk.Frame):
         stock = self._parse_float(self.entry_stock.get().strip(), 0.0)
         unit = (self.combo_unit.get() or "adet").strip()
         if not name:
-            messagebox.showwarning("Eksik bilgi", "Isim gerekli.")
+            messagebox.showwarning("Eksik bilgi", "İsim gerekli.")
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -201,7 +205,7 @@ class ProductsFrame(tk.Frame):
             )
             conn.commit()
         except sqlite3.IntegrityError:
-            messagebox.showerror("Hata", "Barkod benzersiz olmalidir.")
+            messagebox.showerror("Hata", "Barkod benzersiz olmalıdır.")
         finally:
             conn.close()
             self.refresh()
@@ -209,9 +213,9 @@ class ProductsFrame(tk.Frame):
     def delete_product(self) -> None:
         pid = self._selected_id()
         if pid is None:
-            messagebox.showinfo("Secim yok", "Silinecek urunu secin.")
+            messagebox.showinfo("Seçim yok", "Silinecek ürünü seçin.")
             return
-        if not messagebox.askyesno("Onay", "Secili urunu silmek istiyor musunuz?"):
+        if not messagebox.askyesno("Onay", "Seçili ürünü silmek istiyor musunuz?"):
             return
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -228,4 +232,3 @@ class ProductsFrame(tk.Frame):
     def clear_search(self) -> None:
         self.entry_search.delete(0, tk.END)
         self.refresh()
-

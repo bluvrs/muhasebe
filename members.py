@@ -2,6 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
+from ui import make_back_arrow
 
 DB_NAME = "coop.db"
 
@@ -11,7 +12,11 @@ class MembersFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        tk.Label(self, text="Uye Yonetimi", font=("Arial", 16, "bold")).pack(pady=(20, 10))
+        header = tk.Frame(self)
+        header.pack(fill='x')
+        back = make_back_arrow(header, self.go_back)
+        back.pack(side='left', padx=(10,6), pady=(10,6))
+        tk.Label(header, text="Uye Yonetimi", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
 
         # Users list
         columns = ("id", "username", "role")
@@ -50,7 +55,6 @@ class MembersFrame(tk.Frame):
         tk.Button(btns, text="Guncelle", command=self.update_user).pack(side="left", padx=8)
         tk.Button(btns, text="Sil", command=self.delete_user).pack(side="left")
         tk.Button(btns, text="Sifreyi Sifirla", command=self.reset_password).pack(side="left", padx=8)
-        tk.Button(btns, text="Geri", command=self.go_back).pack(side="right")
 
         self.refresh_users()
 

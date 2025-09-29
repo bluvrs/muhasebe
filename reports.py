@@ -6,6 +6,8 @@ from datetime import date, timedelta, datetime
 import tempfile
 import webbrowser
 import os
+from ui import make_back_arrow
+from typing import Optional, Tuple, List
 
 DB_NAME = "coop.db"
 
@@ -20,9 +22,198 @@ try:
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase.pdfmetrics import registerFont
+    from reportlab.lib.fonts import addMapping
     _PDF_AVAILABLE = True
 except Exception:
     _PDF_AVAILABLE = False
+
+# Preferred PDF fonts for Turkish
+_PDF_FONT_REGULAR = None  # type: ignore
+_PDF_FONT_BOLD = None  # type: ignore
+
+def _ensure_turkish_pdf_font() -> Tuple[Optional[str], Optional[str]]:
+    """Try to register a Unicode TTF with Turkish glyphs.
+    Returns (regular_name, bold_name) or (None, None) on failure.
+    """
+    global _PDF_FONT_REGULAR, _PDF_FONT_BOLD
+    if not _PDF_AVAILABLE:
+        return (None, None)
+    if _PDF_FONT_REGULAR and _PDF_FONT_BOLD:
+        return (_PDF_FONT_REGULAR, _PDF_FONT_BOLD)
+
+    # 1) Prefer project-local fonts if provided
+    base = os.path.dirname(__file__)
+    local_candidates: List[Tuple[str, str, List[str], List[str]]] = [
+        (
+            "RobotoLocal",
+            "RobotoLocal-Bold",
+            [
+                os.path.join(base, "roboto.ttf"),
+                os.path.join(base, "Roboto.ttf"),
+                os.path.join(base, "fonts", "roboto.ttf"),
+                os.path.join(base, "fonts", "Roboto.ttf"),
+                os.path.join(base, "Roboto", "static", "Roboto-Regular.ttf"),
+                os.path.join(base, "roboto", "static", "Roboto-Regular.ttf"),
+            ],
+            [
+                os.path.join(base, "roboto-bold.ttf"),
+                os.path.join(base, "Roboto-Bold.ttf"),
+                os.path.join(base, "fonts", "roboto-bold.ttf"),
+                os.path.join(base, "fonts", "Roboto-Bold.ttf"),
+                os.path.join(base, "Roboto", "static", "Roboto-Bold.ttf"),
+                os.path.join(base, "roboto", "static", "Roboto-Bold.ttf"),
+            ],
+        ),
+    ]
+
+    def _first_existing(paths: List[str]) -> Optional[str]:
+        for p in paths:
+            try:
+                if p and os.path.exists(p):
+                    return p
+            except Exception:
+                pass
+        return None
+
+    for fam, fam_bold, regular_paths, bold_paths in local_candidates:
+        reg = _first_existing(regular_paths)
+        bld = _first_existing(bold_paths)
+        # Try optional italic faces
+        italic_paths = [
+            os.path.join(base, "Roboto", "static", "Roboto-Italic.ttf"),
+            os.path.join(base, "roboto", "static", "Roboto-Italic.ttf"),
+        ]
+        bolditalic_paths = [
+            os.path.join(base, "Roboto", "static", "Roboto-BoldItalic.ttf"),
+            os.path.join(base, "roboto", "static", "Roboto-BoldItalic.ttf"),
+        ]
+        itc = _first_existing(italic_paths)
+        bitc = _first_existing(bolditalic_paths)
+        if reg:
+            try:
+                # Register faces
+                registerFont(TTFont(fam, reg))
+                if bld:
+                    registerFont(TTFont(fam_bold, bld))
+                if itc:
+                    registerFont(TTFont(fam + "-Italic", itc))
+                if bitc:
+                    registerFont(TTFont(fam_bold + "Italic", bitc))
+                # Family mappings
+                try:
+                    addMapping(fam, 0, 0, fam)
+                    addMapping(fam, 1, 0, fam_bold if bld else fam)
+                    addMapping(fam, 0, 1, fam + "-Italic" if itc else fam)
+                    addMapping(fam, 1, 1, fam_bold + "Italic" if bitc else (fam_bold if bld else fam))
+                except Exception:
+                    pass
+                _PDF_FONT_REGULAR, _PDF_FONT_BOLD = fam, (fam_bold if bld else None)  # type: ignore[assignment]
+                return (_PDF_FONT_REGULAR, _PDF_FONT_BOLD)
+            except Exception:
+                pass
+
+    candidates = [
+        # DejaVu Sans
+        ("DejaVuSans", "DejaVuSans-Bold", [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/local/share/fonts/DejaVuSans.ttf",
+            "/Library/Fonts/DejaVuSans.ttf",
+            os.path.expanduser("~/Library/Fonts/DejaVuSans.ttf"),
+            "C:\\Windows\\Fonts\\DejaVuSans.ttf",
+        ], [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/local/share/fonts/DejaVuSans-Bold.ttf",
+            "/Library/Fonts/DejaVuSans-Bold.ttf",
+            os.path.expanduser("~/Library/Fonts/DejaVuSans-Bold.ttf"),
+            "C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf",
+        ]),
+        # Noto Sans
+        ("NotoSans", "NotoSans-Bold", [
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/usr/local/share/fonts/NotoSans-Regular.ttf",
+            "/Library/Fonts/NotoSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/NotoSans-Regular.ttf",
+            os.path.expanduser("~/Library/Fonts/NotoSans-Regular.ttf"),
+            "C:\\Windows\\Fonts\\NotoSans-Regular.ttf",
+        ], [
+            "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+            "/usr/local/share/fonts/NotoSans-Bold.ttf",
+            "/Library/Fonts/NotoSans-Bold.ttf",
+            "/System/Library/Fonts/Supplemental/NotoSans-Bold.ttf",
+            os.path.expanduser("~/Library/Fonts/NotoSans-Bold.ttf"),
+            "C:\\Windows\\Fonts\\NotoSans-Bold.ttf",
+        ]),
+        # Arial (often present on Windows/macOS)
+        ("Arial", "Arial-Bold", [
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "/Library/Fonts/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            os.path.expanduser("~/Library/Fonts/Arial.ttf"),
+        ], [
+            "C:\\Windows\\Fonts\\arialbd.ttf",
+            "/Library/Fonts/Arial Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+            os.path.expanduser("~/Library/Fonts/Arial Bold.ttf"),
+        ]),
+        # Liberation Sans (Linux)
+        ("LiberationSans", "LiberationSans-Bold", [
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        ], [
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ]),
+    ]
+
+    # (redefine helper for system font search)
+    def _first_existing_sys(paths: List[str]) -> Optional[str]:
+        for p in paths:
+            try:
+                if p and os.path.exists(p):
+                    return p
+            except Exception:
+                pass
+        return None
+
+    for fam, fam_bold, regular_paths, bold_paths in candidates:
+        reg = _first_existing_sys(regular_paths)
+        bld = _first_existing_sys(bold_paths)
+        if reg and bld:
+            try:
+                registerFont(TTFont(fam, reg))
+                registerFont(TTFont(fam_bold, bld))
+                # map family to bold
+                try:
+                    addMapping(fam, 0, 0, fam)
+                    addMapping(fam, 0, 1, fam_bold)
+                except Exception:
+                    pass
+                _PDF_FONT_REGULAR, _PDF_FONT_BOLD = fam, fam_bold
+                return (_PDF_FONT_REGULAR, _PDF_FONT_BOLD)
+            except Exception:
+                continue
+
+    # As a last resort, try to register any TTF named in env var
+    env_reg = os.environ.get("PDF_TURKISH_FONT_REGULAR")
+    env_bld = os.environ.get("PDF_TURKISH_FONT_BOLD")
+    if env_reg and env_bld and os.path.exists(env_reg) and os.path.exists(env_bld):
+        try:
+            registerFont(TTFont("CustomTR", env_reg))
+            registerFont(TTFont("CustomTR-Bold", env_bld))
+            try:
+                addMapping("CustomTR", 0, 0, "CustomTR")
+                addMapping("CustomTR", 0, 1, "CustomTR-Bold")
+            except Exception:
+                pass
+            _PDF_FONT_REGULAR, _PDF_FONT_BOLD = "CustomTR", "CustomTR-Bold"
+            return (_PDF_FONT_REGULAR, _PDF_FONT_BOLD)
+        except Exception:
+            pass
+
+    return (None, None)
 
 
 class ReportsFrame(tk.Frame):
@@ -32,8 +223,10 @@ class ReportsFrame(tk.Frame):
 
         header = tk.Frame(self)
         header.pack(fill="x")
-        tk.Label(header, text="Raporlar", font=("Arial", 16, "bold")).pack(side="left", pady=(20, 10), padx=20)
-        tk.Button(header, text="Geri", command=self.go_back).pack(side="right", padx=20, pady=(20, 10))
+        # Back arrow (top-left)
+        back = make_back_arrow(header, self.go_back)
+        back.pack(side='left', padx=(10, 6), pady=(10, 6))
+        tk.Label(header, text="Raporlar", font=("Arial", 16, "bold")).pack(side="left", pady=(16, 6))
 
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True)
@@ -42,7 +235,7 @@ class ReportsFrame(tk.Frame):
         self.daily_tab = tk.Frame(self.nb)
         self.cash_tab = tk.Frame(self.nb)
         self.inventory_tab = tk.Frame(self.nb)
-        self.nb.add(self.daily_tab, text="Gunluk Gelir/Satis")
+        self.nb.add(self.daily_tab, text="Günlük Gelir/Satış")
         self.nb.add(self.cash_tab, text="Kasa Defteri")
         self.nb.add(self.inventory_tab, text="Envanter Defteri")
 
@@ -51,8 +244,8 @@ class ReportsFrame(tk.Frame):
         self._build_inventory_tab()
 
         # Header actions
-        tk.Button(header, text="PDF", command=self._export_pdf).pack(side="right", padx=(0, 8), pady=(20, 10))
-        tk.Button(header, text="Yazdir", command=self._print_preview).pack(side="right", padx=(0, 8), pady=(20, 10))
+        tk.Button(header, text="PDF", command=self._export_pdf).pack(side="right", padx=(0, 8), pady=(16, 6))
+        tk.Button(header, text="Yazdır", command=self._print_preview).pack(side="right", padx=(0, 8), pady=(16, 6))
 
         self.refresh()
 
@@ -74,7 +267,7 @@ class ReportsFrame(tk.Frame):
         bar.pack(fill="x", padx=20, pady=(10, 6))
         tk.Button(bar, text="<", width=3, command=lambda: self._change_day(-1)).pack(side="left")
         if _DateEntry is not None:
-            self.daily_date = _DateEntry(bar, date_pattern="yyyy-mm-dd")
+            self.daily_date = _DateEntry(bar, date_pattern="yyyy-mm-dd", state="readonly")
             try:
                 self.daily_date.set_date(date.today())
             except Exception:
@@ -84,12 +277,12 @@ class ReportsFrame(tk.Frame):
             self.daily_date.insert(0, date.today().isoformat())
         self.daily_date.pack(side="left", padx=(6, 6))
         tk.Button(bar, text=">", width=3, command=lambda: self._change_day(1)).pack(side="left")
-        tk.Button(bar, text="Bugun", command=self._set_today).pack(side="left", padx=(6, 12))
+        tk.Button(bar, text="Bugün", command=self._set_today).pack(side="left", padx=(6, 12))
         tk.Button(bar, text="Yenile", command=self._refresh_daily).pack(side="left")
 
         columns = ("id", "time", "total")
         self.sales_tree = ttk.Treeview(self.daily_tab, columns=columns, show="headings", height=12)
-        self.sales_tree.heading("id", text="Satis #")
+        self.sales_tree.heading("id", text="Satış #")
         self.sales_tree.heading("time", text="Saat")
         self.sales_tree.heading("total", text="Tutar")
         self.sales_tree.column("id", width=80, anchor="center")
@@ -100,7 +293,7 @@ class ReportsFrame(tk.Frame):
         bottom = tk.Frame(self.daily_tab)
         bottom.pack(fill="x", padx=20, pady=(0, 10))
         self.daily_total_var = tk.StringVar(value="0.00")
-        tk.Label(bottom, text="Gunluk Toplam:").pack(side="left")
+        tk.Label(bottom, text="Günlük Toplam:").pack(side="left")
         tk.Label(bottom, textvariable=self.daily_total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
 
     def _get_selected_day(self) -> str:
@@ -158,29 +351,29 @@ class ReportsFrame(tk.Frame):
         top.pack(fill="x", padx=20, pady=(10, 6))
         self.cash_total_var = tk.StringVar(value="0.00")
         self.bank_total_var = tk.StringVar(value="0.00")
-        tk.Label(top, text="Kasa Toplami:").pack(side="left")
+        tk.Label(top, text="Kasa Toplamı:").pack(side="left")
         tk.Label(top, textvariable=self.cash_total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
-        tk.Label(top, text="Banka Toplami:").pack(side="left")
+        tk.Label(top, text="Banka Toplamı:").pack(side="left")
         tk.Label(top, textvariable=self.bank_total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
 
         # Actions
         actions = tk.Frame(self.cash_tab)
         actions.pack(fill="x", padx=20, pady=(0, 10))
         # Cash in/out
-        tk.Label(actions, text="Kasa islem tutari").grid(row=0, column=0, sticky="w")
+        tk.Label(actions, text="Kasa işlem tutarı").grid(row=0, column=0, sticky="w")
         self.cash_amount = tk.Entry(actions, width=12)
         self.cash_amount.grid(row=0, column=1, sticky="w", padx=(6, 10))
-        tk.Label(actions, text="Aciklama").grid(row=0, column=2, sticky="w")
+        tk.Label(actions, text="Açıklama").grid(row=0, column=2, sticky="w")
         self.cash_desc = tk.Entry(actions, width=40)
         self.cash_desc.grid(row=0, column=3, sticky="w", padx=(6, 10))
         tk.Button(actions, text="Kasaya Ekle", command=lambda: self._cash_op('in')).grid(row=0, column=4, padx=(6, 0))
-        tk.Button(actions, text="Kasadan Cik", command=lambda: self._cash_op('out')).grid(row=0, column=5, padx=(6, 0))
+        tk.Button(actions, text="Kasadan Çık", command=lambda: self._cash_op('out')).grid(row=0, column=5, padx=(6, 0))
 
         # Transfer to bank
-        tk.Label(actions, text="Bankaya aktar tutari").grid(row=1, column=0, sticky="w")
+        tk.Label(actions, text="Bankaya aktar tutarı").grid(row=1, column=0, sticky="w")
         self.transfer_amount = tk.Entry(actions, width=12)
         self.transfer_amount.grid(row=1, column=1, sticky="w", padx=(6, 10))
-        tk.Label(actions, text="Aciklama").grid(row=1, column=2, sticky="w")
+        tk.Label(actions, text="Açıklama").grid(row=1, column=2, sticky="w")
         self.transfer_desc = tk.Entry(actions, width=40)
         self.transfer_desc.grid(row=1, column=3, sticky="w", padx=(6, 10))
         tk.Button(actions, text="Bankaya Aktar", command=self._transfer_to_bank).grid(row=1, column=4, padx=(6, 0))
@@ -196,7 +389,7 @@ class ReportsFrame(tk.Frame):
         lists.add(cash_frame)
         lists.add(bank_frame)
 
-        tk.Label(cash_frame, text="Kasa Islemleri", font=("Arial", 12, "bold")).pack(anchor="w")
+        tk.Label(cash_frame, text="Kasa İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w")
         ccols = ("date", "type", "amount", "description")
         self.cash_tree = ttk.Treeview(cash_frame, columns=ccols, show="headings", height=12)
         for c in ccols:
@@ -207,7 +400,7 @@ class ReportsFrame(tk.Frame):
         self.cash_tree.column("description", width=300)
         self.cash_tree.pack(fill="both", expand=True, pady=(4, 0))
 
-        tk.Label(bank_frame, text="Banka Islemleri", font=("Arial", 12, "bold")).pack(anchor="w")
+        tk.Label(bank_frame, text="Banka İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w")
         bcols = ("date", "type", "amount", "description")
         self.bank_tree = ttk.Treeview(bank_frame, columns=bcols, show="headings", height=12)
         for c in bcols:
@@ -287,14 +480,14 @@ class ReportsFrame(tk.Frame):
         columns = ("name", "barcode", "stock", "unit", "price", "cost", "value_retail", "value_cost")
         self.inv_tree = ttk.Treeview(self.inventory_tab, columns=columns, show="headings", height=16)
         headers = {
-            "name": "Urun",
+            "name": "Ürün",
             "barcode": "Barkod",
             "stock": "Stok",
             "unit": "Birim",
             "price": "Fiyat",
             "cost": "Maliyet",
-            "value_retail": "Deger (Satis)",
-            "value_cost": "Deger (Maliyet)",
+            "value_retail": "Değer (Satış)",
+            "value_cost": "Değer (Maliyet)",
         }
         widths = {
             "name": 220,
@@ -351,7 +544,7 @@ class ReportsFrame(tk.Frame):
         except Exception:
             active = 0
         if active == 0:
-            title = f"Gunluk Satis Raporu - {self._get_selected_day()}"
+            title = f"Günlük Satış Raporu - {self._get_selected_day()}"
             html = self._html_daily()
         elif active == 1:
             title = "Kasa/Bank Raporu"
@@ -377,12 +570,22 @@ class ReportsFrame(tk.Frame):
     .center {{ text-align: center; }}
   </style>
   <script>
-    function onLoad() {{ window.focus(); }}
+    function onLoad() {{
+      try {{ window.focus(); }} catch (e) {{}}
+      setTimeout(function () {{
+        try {{ window.print(); }} catch (e) {{}}
+      }}, 150);
+    }}
+    try {{
+      window.onafterprint = function () {{
+        try {{ window.close(); }} catch (e) {{}}
+      }};
+    }} catch (e) {{}}
   </script>
   </head>
   <body onload="onLoad()">
     <h1>{title}</h1>
-    <div class="meta">Olusturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+    <div class="meta">Oluşturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
     {html}
   </body>
 </html>
@@ -406,7 +609,7 @@ class ReportsFrame(tk.Frame):
             for sid, tm, tot in rows
         )
         return (
-            "<table><thead><tr><th>Satis #</th><th>Saat</th><th>Tutar</th></tr></thead>"
+            "<table><thead><tr><th>Satış #</th><th>Saat</th><th>Tutar</th></tr></thead>"
             f"<tbody>{body}</tbody><tfoot><tr><td colspan='2'>Toplam</td><td class='right'>{total}</td></tr></tfoot></table>"
         )
 
@@ -422,12 +625,12 @@ class ReportsFrame(tk.Frame):
             )
         cash_html = (
             "<h2>Kasa</h2>"
-            "<table><thead><tr><th>Tarih</th><th>Tur</th><th>Tutar</th><th>Aciklama</th></tr></thead>"
+            "<table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th><th>Açıklama</th></tr></thead>"
             f"<tbody>{rows_to_html(cash_rows)}</tbody><tfoot><tr><td colspan='2'>Toplam</td><td class='right'>{cash_total}</td><td></td></tr></tfoot></table>"
         )
         bank_html = (
             "<h2>Banka</h2>"
-            "<table><thead><tr><th>Tarih</th><th>Tur</th><th>Tutar</th><th>Aciklama</th></tr></thead>"
+            "<table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th><th>Açıklama</th></tr></thead>"
             f"<tbody>{rows_to_html(bank_rows)}</tbody><tfoot><tr><td colspan='2'>Toplam</td><td class='right'>{bank_total}</td><td></td></tr></tfoot></table>"
         )
         return cash_html + bank_html
@@ -441,7 +644,7 @@ class ReportsFrame(tk.Frame):
             for r in rows
         )
         head = [
-            "Urun","Barkod","Stok","Birim","Fiyat","Maliyet","Deger (Satis)","Deger (Maliyet)"
+            "Ürün","Barkod","Stok","Birim","Fiyat","Maliyet","Değer (Satış)","Değer (Maliyet)"
         ]
         thead = "".join(f"<th>{h}</th>" for h in head)
         return f"<table><thead><tr>{thead}</tr></thead><tbody>{body}</tbody></table>"
@@ -460,6 +663,21 @@ class ReportsFrame(tk.Frame):
             active = 0
         flows = []
         styles = getSampleStyleSheet()
+        # Ensure Turkish-capable fonts
+        font_reg, font_bold = _ensure_turkish_pdf_font()
+        try:
+            if font_reg:
+                styles['Normal'].fontName = font_reg
+            if font_bold:
+                styles['Title'].fontName = font_bold
+                styles['Heading1'].fontName = font_bold
+                styles['Heading2'].fontName = font_bold
+            elif font_reg:
+                styles['Title'].fontName = font_reg
+                styles['Heading1'].fontName = font_reg
+                styles['Heading2'].fontName = font_reg
+        except Exception:
+            pass
         title_text = ""
         flows.append(Paragraph("Raporlar", styles['Title']))
         flows.append(Paragraph(f"Oluşturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
@@ -474,12 +692,13 @@ class ReportsFrame(tk.Frame):
             flows.append(Paragraph(title_text, styles['Heading2']))
             t = Table(data, hAlign='LEFT')
             t.setStyle(TableStyle([
+                ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                 ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (2,1), (2,-1), 'RIGHT'),
                 ('ALIGN', (0,1), (1,-2), 'CENTER'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ( 'FONTNAME', (0,0), (-1,0), (font_bold or font_reg or 'Helvetica-Bold')),
+                ( 'FONTNAME', (0,-1), (-1,-1), (font_bold or font_reg or 'Helvetica-Bold')),
             ]))
             flows.append(t)
         elif active == 1:
@@ -492,11 +711,12 @@ class ReportsFrame(tk.Frame):
             cdata.append(["", "Toplam", self.cash_total_var.get(), ""])
             ct = Table(cdata, hAlign='LEFT', colWidths=[90, 50, 60, 280])
             ct.setStyle(TableStyle([
+                ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                 ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (2,1), (2,-1), 'RIGHT'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ( 'FONTNAME', (0,0), (-1,0), (font_bold or font_reg or 'Helvetica-Bold')),
+                ( 'FONTNAME', (0,-1), (-1,-1), (font_bold or font_reg or 'Helvetica-Bold')),
             ]))
             flows.append(ct)
             flows.append(Spacer(1, 8))
@@ -507,11 +727,12 @@ class ReportsFrame(tk.Frame):
             bdata.append(["", "Toplam", self.bank_total_var.get(), ""])
             bt = Table(bdata, hAlign='LEFT', colWidths=[90, 50, 60, 280])
             bt.setStyle(TableStyle([
+                ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                 ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (2,1), (2,-1), 'RIGHT'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ( 'FONTNAME', (0,0), (-1,0), (font_bold or font_reg or 'Helvetica-Bold')),
+                ( 'FONTNAME', (0,-1), (-1,-1), font_bold if font_bold else 'Helvetica-Bold'),
             ]))
             flows.append(bt)
         else:
@@ -524,11 +745,12 @@ class ReportsFrame(tk.Frame):
             col_widths = [140, 90, 40, 40, 55, 55, 90, 100]
             t = Table(data, hAlign='LEFT', colWidths=col_widths)
             t.setStyle(TableStyle([
+                ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                 ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (2,1), (2,-1), 'RIGHT'),
                 ('ALIGN', (4,1), (7,-1), 'RIGHT'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ( 'FONTNAME', (0,0), (-1,0), font_bold if font_bold else 'Helvetica-Bold'),
             ]))
             flows.append(t)
 
