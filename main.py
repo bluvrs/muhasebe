@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
+from ui import apply_theme, create_menu_button, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins
+import sqlite3 as _sqlite3
 from typing import Tuple
 try:
     from products import ProductsFrame
@@ -188,6 +190,15 @@ class App(tk.Tk):
         self.minsize(800, 600)
         # Start maximized when the app launches
         self._maximize_startup()
+        # Apply global UI theme for readability (use saved settings)
+        try:
+            scale, theme = self._load_ui_settings()
+            apply_theme(self, scale=scale, theme_name=theme)
+        except Exception:
+            try:
+                apply_theme(self)
+            except Exception:
+                pass
         self.frames: Dict[Type[tk.Frame], tk.Frame] = {}
         self.active_user: Optional[Dict[str, str]] = None
 
@@ -216,12 +227,42 @@ class App(tk.Tk):
         if hasattr(frame, "on_show"):
             frame.on_show(**kwargs)
         frame.tkraise()
+        # Ensure inputs have comfortable spacing on each screen
+        try:
+            apply_entry_margins(frame, pady=8)
+        except Exception:
+            pass
 
     def _maximize_startup(self) -> None:
         # Try native maximize first (works on Windows/Linux)
         try:
             self.state("zoomed")
             return
+        except Exception:
+            pass
+
+    def _load_ui_settings(self):
+        try:
+            conn = _sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            cur.execute("SELECT key, value FROM settings WHERE key IN ('ui_theme')")
+            rows = dict(cur.fetchall())
+            conn.close()
+            # Force 2x scaling per request
+            scale = 2.0
+            theme = None
+            if 'ui_theme' in rows and rows['ui_theme']:
+                theme = rows['ui_theme']
+            return scale, theme
+        except Exception:
+            return 2.0, None
+
+    def refresh_theme(self) -> None:
+        try:
+            for frame in self.frames.values():
+                if hasattr(frame, 'on_theme_changed'):
+                    frame.on_theme_changed()
         except Exception:
             pass
         # Fallback: manually size to screen
@@ -274,19 +315,35 @@ class LoginFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        tk.Label(self, text="Kooperatif Giris", font=("Arial", 16, "bold")).pack(pady=20)
+        # Build centered login card
+        self._build_login_card()
 
-        tk.Label(self, text="Kullanici adi").pack(pady=(0, 5))
-        self.entry_user = tk.Entry(self)
-        self.entry_user.pack(padx=40, fill="x")
+    def _build_login_card(self) -> None:
+        try:
+            if hasattr(self, 'card_container') and self.card_container.winfo_exists():
+                self.card_container.destroy()
+        except Exception:
+            pass
+        # Rounded outline container with larger size (≈1.5x)
+        self.card_container, inner = rounded_outline(self, radius=16, padding=18, border='#888')
+        self.card_container.place(relx=0.5, rely=0.5, anchor='center')
+        tint = smart_tinted_bg(self)
+        inner.configure(bg=tint)
+        center = tk.Frame(inner, bg=tint)
+        center.pack(expand=True)
+
+        tk.Label(center, text="Kooperatif Giriş", font=("Arial", 18, "bold"), bg=tint).pack(pady=(0, 14))
+
+        tk.Label(center, text="Kullanıcı adı", bg=tint).pack(anchor='center')
+        self.entry_user = tk.Entry(center, width=42)
+        self.entry_user.pack()
         self.entry_user.bind("<Return>", lambda _e: self.do_login())
 
-        tk.Label(self, text="Sifre").pack(pady=(15, 5))
-        self.entry_pass = tk.Entry(self, show="*")
-        self.entry_pass.pack(padx=40, fill="x")
+        tk.Label(center, text="Şifre", bg=tint).pack(anchor='center', pady=(10, 0))
+        self.entry_pass = tk.Entry(center, show="*", width=42)
+        self.entry_pass.pack()
         self.entry_pass.bind("<Return>", lambda _e: self.do_login())
-
-        tk.Button(self, text="Giris Yap", command=self.do_login).pack(pady=20)
+        tk.Button(center, text="Giriş Yap", command=self.do_login).pack(pady=(14, 2))
 
     def _on_return(self, event: tk.Event) -> None:  # type: ignore[name-defined]
         self.do_login()
@@ -305,6 +362,10 @@ class LoginFrame(tk.Frame):
         self.entry_user.delete(0, tk.END)
         self.entry_pass.delete(0, tk.END)
         self.entry_user.focus_set()
+
+    def on_theme_changed(self) -> None:
+        # Rebuild card to refresh tinted backgrounds with current theme
+        self._build_login_card()
 
 
 class RoleFrame(tk.Frame):
@@ -328,13 +389,20 @@ class RoleFrame(tk.Frame):
             tk.Label(self, text=description, wraplength=360, justify="center").pack(pady=20)
 
         if actions:
-            for action in actions:
+            # Grid square menu buttons in two columns
+            grid = tk.Frame(self)
+            grid.pack(pady=10)
+            cols = 2
+            for idx, action in enumerate(actions):
                 handler = None
                 if action_handlers:
                     handler = action_handlers.get(action)
                 if handler is None:
                     handler = lambda name=action: controller.show_placeholder(name)
-                tk.Button(self, text=action, command=handler).pack(fill="x", padx=60, pady=5)
+                btn = create_menu_button(grid, action, handler)
+                r, c = divmod(idx, cols)
+                btn.grid(row=r, column=c, padx=10, pady=10, sticky='nsew')
+                grid.grid_columnconfigure(c, weight=1)
 
         tk.Button(self, text="Çıkış yap", command=self.controller.logout).pack(pady=30)
 
@@ -344,7 +412,16 @@ class RoleFrame(tk.Frame):
 
 class AdminFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Üye yönetimi", "Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar", "Ayarlar"]
+        actions = [
+            "Üye yönetimi",
+            "Ürün yönetimi",
+            "Yeni satış",
+            "İade işlemi",
+            "Gelir/Gider kaydı",
+            "Yatırımcılar",
+            "Raporlar",
+            "Ayarlar",
+        ]
         handlers: Dict[str, Callable[[], None]] = {
             "Üye yönetimi": lambda: controller.show_frame(MembersFrame),
         }
@@ -353,6 +430,16 @@ class AdminFrame(RoleFrame):
             handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
         else:
             handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
+        # Sales
+        if SalesFrame is not None:
+            handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
+        # Returns
+        if 'ReturnFrame' in globals() and ReturnFrame is not None:
+            handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
+        else:
+            handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
         # Ledger (income/outcome)
         if LedgerFrame is not None:
             handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
@@ -407,12 +494,30 @@ class MemberFrame(RoleFrame):
 
 class ManagerFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar", "Ayarlar"]
+        actions = [
+            "Ürün yönetimi",
+            "Yeni satış",
+            "İade işlemi",
+            "Gelir/Gider kaydı",
+            "Yatırımcılar",
+            "Raporlar",
+            "Ayarlar",
+        ]
         handlers: Dict[str, Callable[[], None]] = {}
         if ProductsFrame is not None:
             handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
         else:
             handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
+        # Sales
+        if SalesFrame is not None:
+            handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
+        # Returns
+        if 'ReturnFrame' in globals() and ReturnFrame is not None:
+            handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
+        else:
+            handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
         if LedgerFrame is not None:
             handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
         else:

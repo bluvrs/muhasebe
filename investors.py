@@ -36,7 +36,8 @@ class InvestorsFrame(tk.Frame):
 
         # List
         columns = ("id", "name", "phone", "initial_capital", "current_capital", "pool_share_%", "shop_share_%", "initial_date")
-        self.tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
+        # Keep the top list compact so the transactions list below stays readable
+        self.tree = ttk.Treeview(self, columns=columns, show="headings", height=7)
         self.tree.heading("id", text="ID")
         self.tree.heading("name", text="İsim")
         self.tree.heading("phone", text="Telefon")
@@ -130,7 +131,8 @@ class InvestorsFrame(tk.Frame):
         tk.Button(tx_btns, text="Islemi Sil", command=self.delete_tx).pack(side="left", padx=(8, 0))
 
         tx_cols = ("id", "date", "type", "amount", "notes")
-        self.tx_tree = ttk.Treeview(self, columns=tx_cols, show="headings", height=8)
+        # Give more room to transactions
+        self.tx_tree = ttk.Treeview(self, columns=tx_cols, show="headings", height=12)
         for c, lbl, w, anc in (
             ("id", "ID", 50, "center"),
             ("date", "Tarih", 100, "w"),
@@ -146,6 +148,20 @@ class InvestorsFrame(tk.Frame):
 
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Yatırımcılar")
+        try:
+            for w in (getattr(self, 'entry_name', None), getattr(self, 'entry_phone', None), getattr(self, 'entry_capital', None), getattr(self, 'entry_notes', None)):
+                if w is not None:
+                    w.delete(0, tk.END)
+            for w in (getattr(self, 'tx_date', None), getattr(self, 'tx_amount', None), getattr(self, 'tx_notes', None)):
+                if hasattr(w, 'delete'):
+                    w.delete(0, tk.END)
+            # clear selections and tx list
+            for sel in self.tree.selection():
+                self.tree.selection_remove(sel)
+            for iid in self.tx_tree.get_children():
+                self.tx_tree.delete(iid)
+        except Exception:
+            pass
         self.refresh()
 
     # Helpers

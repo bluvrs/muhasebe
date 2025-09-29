@@ -127,6 +127,16 @@ class LedgerFrame(tk.Frame):
 
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Gelir/Gider Kaydı")
+        try:
+            # Clear form inputs
+            for w in (getattr(self, 'entry_amount', None), getattr(self, 'entry_desc', None), getattr(self, 'entry_invoice', None), getattr(self, 'entry_company', None)):
+                if w is not None:
+                    w.delete(0, tk.END)
+            # Clear selection
+            for sel in self.tree.selection():
+                self.tree.selection_remove(sel)
+        except Exception:
+            pass
         self.refresh()
 
     def _on_tab_changed(self) -> None:

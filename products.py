@@ -2,7 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
-from ui import make_back_arrow
+from ui import make_back_arrow, tinted_bg
 
 DB_NAME = "coop.db"
 
@@ -47,37 +47,41 @@ class ProductsFrame(tk.Frame):
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         self.tree.pack(fill="both", expand=False, padx=20, pady=(6, 0))
 
-        # Form
-        form = tk.Frame(self)
-        form.pack(fill="x", padx=20, pady=10)
+        # Form (outlined and compact) – order: Barcode, Name, Cost, Price, Unit, Stock
+        form_wrap = tk.Frame(self, bd=0, highlightthickness=1, highlightbackground='#888', bg=tinted_bg(self, 0.07))
+        form_wrap.pack(fill="x", padx=20, pady=10)
+        form = tk.Frame(form_wrap, bd=0, bg=form_wrap.cget('bg'))
+        form.pack(fill='x', padx=10, pady=8)
 
-        tk.Label(form, text="İsim").grid(row=0, column=0, sticky="w")
-        self.entry_name = tk.Entry(form)
-        self.entry_name.grid(row=0, column=1, sticky="ew", padx=(8, 20))
-
-        tk.Label(form, text="Barkod").grid(row=1, column=0, sticky="w")
+        # Barkod
+        tk.Label(form, text="Barkod", bg=form.cget('bg')).grid(row=0, column=0, sticky="w")
         self.entry_barcode = tk.Entry(form)
-        self.entry_barcode.grid(row=1, column=1, sticky="ew", padx=(8, 20))
-
-        tk.Label(form, text="Fiyat").grid(row=0, column=2, sticky="w")
-        self.entry_price = tk.Entry(form)
-        self.entry_price.grid(row=0, column=3, sticky="ew", padx=(8, 20))
-
-        tk.Label(form, text="Stok").grid(row=1, column=2, sticky="w")
-        self.entry_stock = tk.Entry(form)
-        self.entry_stock.grid(row=1, column=3, sticky="ew", padx=(8, 20))
-
-        tk.Label(form, text="Birim").grid(row=0, column=4, sticky="w")
-        self.combo_unit = ttk.Combobox(form, values=["adet", "kg", "lt", "paket"], state="readonly")
-        self.combo_unit.set("adet")
-        self.combo_unit.grid(row=0, column=5, sticky="w")
-
-        tk.Label(form, text="Maliyet").grid(row=1, column=4, sticky="w")
+        self.entry_barcode.grid(row=0, column=1, sticky="ew", padx=(6, 16))
+        # Ürün adı
+        tk.Label(form, text="İsim", bg=form.cget('bg')).grid(row=0, column=2, sticky="w")
+        self.entry_name = tk.Entry(form)
+        self.entry_name.grid(row=0, column=3, sticky="ew", padx=(6, 16))
+        # Maliyet
+        tk.Label(form, text="Maliyet", bg=form.cget('bg')).grid(row=0, column=4, sticky="w")
         self.entry_cost = tk.Entry(form)
-        self.entry_cost.grid(row=1, column=5, sticky="ew")
+        self.entry_cost.grid(row=0, column=5, sticky="ew", padx=(6, 16))
+        # Fiyat
+        tk.Label(form, text="Fiyat", bg=form.cget('bg')).grid(row=0, column=6, sticky="w")
+        self.entry_price = tk.Entry(form)
+        self.entry_price.grid(row=0, column=7, sticky="ew", padx=(6, 16))
+        # Birim (alt satır) – combobox daha dar
+        tk.Label(form, text="Birim", bg=form.cget('bg')).grid(row=1, column=0, sticky="w", pady=(8,0))
+        self.combo_unit = ttk.Combobox(form, values=["adet", "kg", "lt", "paket"], state="readonly", width=8)
+        self.combo_unit.set("adet")
+        self.combo_unit.grid(row=1, column=1, sticky="w", padx=(6, 16), pady=(8,0))
+        # Stok (alt satır)
+        tk.Label(form, text="Stok", bg=form.cget('bg')).grid(row=1, column=2, sticky="w", pady=(8,0))
+        self.entry_stock = tk.Entry(form)
+        self.entry_stock.grid(row=1, column=3, sticky="ew", pady=(8,0))
 
-        form.columnconfigure(1, weight=2)
-        form.columnconfigure(3, weight=1)
+        # Responsive columns
+        for c in (1, 3, 5, 7):
+            form.columnconfigure(c, weight=1)
 
         # Buttons
         btns = tk.Frame(self)
@@ -90,6 +94,18 @@ class ProductsFrame(tk.Frame):
 
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Ürün Yönetimi")
+        try:
+            # Reset inputs
+            for w in (getattr(self, 'entry_search', None), getattr(self, 'entry_name', None), getattr(self, 'entry_barcode', None), getattr(self, 'entry_price', None), getattr(self, 'entry_stock', None), getattr(self, 'entry_cost', None)):
+                if w is not None:
+                    w.delete(0, tk.END)
+            if hasattr(self, 'combo_unit'):
+                self.combo_unit.set('adet')
+            # Clear selection
+            for sel in self.tree.selection():
+                self.tree.selection_remove(sel)
+        except Exception:
+            pass
         self.refresh()
 
     # --- Helpers ---
