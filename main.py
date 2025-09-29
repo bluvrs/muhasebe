@@ -25,6 +25,10 @@ try:
     from investors import InvestorsFrame
 except Exception:
     InvestorsFrame = None  # type: ignore[assignment]
+try:
+    from settings import SettingsFrame
+except Exception:
+    SettingsFrame = None  # type: ignore[assignment]
 
 DB_NAME = "coop.db"
 
@@ -340,7 +344,7 @@ class RoleFrame(tk.Frame):
 
 class AdminFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Üye yönetimi", "Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar"]
+        actions = ["Üye yönetimi", "Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar", "Ayarlar"]
         handlers: Dict[str, Callable[[], None]] = {
             "Üye yönetimi": lambda: controller.show_frame(MembersFrame),
         }
@@ -364,6 +368,10 @@ class AdminFrame(RoleFrame):
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
         else:
             handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
+        if SettingsFrame is not None:
+            handlers["Ayarlar"] = lambda: controller.show_frame(SettingsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Ayarlar"] = lambda: controller.show_placeholder("Ayarlar")
         super().__init__(parent, controller, "Admin Panel", actions, handlers)
 
 
@@ -399,7 +407,7 @@ class MemberFrame(RoleFrame):
 
 class ManagerFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar"]
+        actions = ["Ürün yönetimi", "Gelir/Gider kaydı", "Yatırımcılar", "Raporlar", "Ayarlar"]
         handlers: Dict[str, Callable[[], None]] = {}
         if ProductsFrame is not None:
             handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
@@ -417,6 +425,10 @@ class ManagerFrame(RoleFrame):
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
         else:
             handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
+        if SettingsFrame is not None:
+            handlers["Ayarlar"] = lambda: controller.show_frame(SettingsFrame)  # type: ignore[arg-type]
+        else:
+            handlers["Ayarlar"] = lambda: controller.show_placeholder("Ayarlar")
         super().__init__(parent, controller, "Yönetici Paneli", actions, handlers)
 
 

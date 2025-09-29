@@ -392,8 +392,10 @@ class ReportsFrame(tk.Frame):
         tk.Label(cash_frame, text="Kasa İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w")
         ccols = ("date", "type", "amount", "description")
         self.cash_tree = ttk.Treeview(cash_frame, columns=ccols, show="headings", height=12)
-        for c in ccols:
-            self.cash_tree.heading(c, text=c.capitalize())
+        self.cash_tree.heading("date", text="Tarih")
+        self.cash_tree.heading("type", text="Tür")
+        self.cash_tree.heading("amount", text="Tutar")
+        self.cash_tree.heading("description", text="Açıklama")
         self.cash_tree.column("date", width=120)
         self.cash_tree.column("type", width=80, anchor="center")
         self.cash_tree.column("amount", width=120, anchor="e")
@@ -403,8 +405,10 @@ class ReportsFrame(tk.Frame):
         tk.Label(bank_frame, text="Banka İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w")
         bcols = ("date", "type", "amount", "description")
         self.bank_tree = ttk.Treeview(bank_frame, columns=bcols, show="headings", height=12)
-        for c in bcols:
-            self.bank_tree.heading(c, text=c.capitalize())
+        self.bank_tree.heading("date", text="Tarih")
+        self.bank_tree.heading("type", text="Tür")
+        self.bank_tree.heading("amount", text="Tutar")
+        self.bank_tree.heading("description", text="Açıklama")
         self.bank_tree.column("date", width=120)
         self.bank_tree.column("type", width=80, anchor="center")
         self.bank_tree.column("amount", width=120, anchor="e")
@@ -468,12 +472,18 @@ class ReportsFrame(tk.Frame):
         self.bank_total_var.set(f"{float(bank_total):.2f}")
         for iid in self.cash_tree.get_children():
             self.cash_tree.delete(iid)
+        def _tr_type_ctx(ctx: str, t: str) -> str:
+            if ctx == 'cash':
+                return "Kasaya Giriş" if t == 'in' else ("Kasadan Çıkış" if t == 'out' else str(t))
+            if ctx == 'bank':
+                return "Bankaya Giriş" if t == 'in' else ("Bankadan Çıkış" if t == 'out' else str(t))
+            return "Giriş" if t == 'in' else ("Çıkış" if t == 'out' else str(t))
         for d, t, a, desc in cash_rows:
-            self.cash_tree.insert("", "end", values=(d, t, f"{float(a):.2f}", desc))
+            self.cash_tree.insert("", "end", values=(d, _tr_type_ctx('cash', t), f"{float(a):.2f}", desc))
         for iid in self.bank_tree.get_children():
             self.bank_tree.delete(iid)
         for d, t, a, desc in bank_rows:
-            self.bank_tree.insert("", "end", values=(d, t, f"{float(a):.2f}", desc))
+            self.bank_tree.insert("", "end", values=(d, _tr_type_ctx('bank', t), f"{float(a):.2f}", desc))
 
     # --- Inventory tab ---
     def _build_inventory_tab(self) -> None:
@@ -514,11 +524,23 @@ class ReportsFrame(tk.Frame):
         cur.execute("CREATE TABLE IF NOT EXISTS sales (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL DEFAULT (datetime('now')), total REAL NOT NULL)")
         cur.execute("CREATE TABLE IF NOT EXISTS cashbook (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL DEFAULT (datetime('now')), type TEXT NOT NULL CHECK(type IN ('in','out')), amount REAL NOT NULL, description TEXT)")
         cur.execute("CREATE TABLE IF NOT EXISTS bankbook (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL DEFAULT (datetime('now')), type TEXT NOT NULL CHECK(type IN ('in','out')), amount REAL NOT NULL, description TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         conn.close()
         # Refresh each tab
         self._refresh_daily()
         self._refresh_cash()
         self._refresh_inventory()
+
+    def _get_setting(self, key: str, default: str = "") -> str:
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM settings WHERE key=?", (key,))
+            row = cur.fetchone()
+            conn.close()
+            return row[0] if row and row[0] is not None else default
+        except Exception:
+            return default
 
     def _refresh_inventory(self) -> None:
         for iid in self.inv_tree.get_children():
@@ -547,11 +569,12 @@ class ReportsFrame(tk.Frame):
             title = f"Günlük Satış Raporu - {self._get_selected_day()}"
             html = self._html_daily()
         elif active == 1:
-            title = "Kasa/Bank Raporu"
+            title = "Kasa/Banka Raporu"
             html = self._html_cash()
         else:
             title = "Envanter Raporu"
             html = self._html_inventory()
+        school = self._get_setting('report_school_name') or ''
         full_html = f"""
 <!doctype html>
 <html>
@@ -561,6 +584,7 @@ class ReportsFrame(tk.Frame):
   <style>
     body {{ font-family: Arial, sans-serif; margin: 20px; }}
     h1 {{ font-size: 20px; margin-bottom: 10px; }}
+    h2 {{ font-size: 16px; margin-bottom: 8px; }}
     .meta {{ color: #555; margin-bottom: 12px; }}
     table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
     th, td {{ border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }}
@@ -584,7 +608,8 @@ class ReportsFrame(tk.Frame):
   </script>
   </head>
   <body onload="onLoad()">
-    <h1>{title}</h1>
+    {f'<h1>{school}</h1>' if school else ''}
+    <h2>{title}</h2>
     <div class="meta">Oluşturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
     {html}
   </body>
@@ -672,14 +697,21 @@ class ReportsFrame(tk.Frame):
                 styles['Title'].fontName = font_bold
                 styles['Heading1'].fontName = font_bold
                 styles['Heading2'].fontName = font_bold
+                # Ensure subheadings also use bold font supporting Turkish
+                if 'Heading3' in styles.byName:
+                    styles['Heading3'].fontName = font_bold
             elif font_reg:
                 styles['Title'].fontName = font_reg
                 styles['Heading1'].fontName = font_reg
                 styles['Heading2'].fontName = font_reg
+                if 'Heading3' in styles.byName:
+                    styles['Heading3'].fontName = font_reg
         except Exception:
             pass
         title_text = ""
-        flows.append(Paragraph("Raporlar", styles['Title']))
+        school = self._get_setting('report_school_name') or ''
+        if school:
+            flows.append(Paragraph(school, styles['Title']))
         flows.append(Paragraph(f"Oluşturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
         flows.append(Spacer(1, 6))
 
@@ -705,11 +737,13 @@ class ReportsFrame(tk.Frame):
             title_text = "Kasa/Bank Raporu"
             flows.append(Paragraph(title_text, styles['Heading2']))
             # Cash
+            flows.append(Paragraph("Kasa İşlemleri", styles['Heading3']))
             cdata = [["Tarih", "Tür", "Tutar", "Açıklama"]]
             for d, ttyp, amt, desc in [self.cash_tree.item(i, "values") for i in self.cash_tree.get_children()]:
                 cdata.append([str(d), str(ttyp), f"{float(amt):.2f}", str(desc)])
             cdata.append(["", "Toplam", self.cash_total_var.get(), ""])
-            ct = Table(cdata, hAlign='LEFT', colWidths=[90, 50, 60, 280])
+            # Widen Tarih and Tür columns for readability
+            ct = Table(cdata, hAlign='LEFT', colWidths=[110, 140, 70, 220])
             ct.setStyle(TableStyle([
                 ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
@@ -721,18 +755,20 @@ class ReportsFrame(tk.Frame):
             flows.append(ct)
             flows.append(Spacer(1, 8))
             # Bank
+            flows.append(Paragraph("Banka İşlemleri", styles['Heading3']))
             bdata = [["Tarih", "Tür", "Tutar", "Açıklama"]]
             for d, ttyp, amt, desc in [self.bank_tree.item(i, "values") for i in self.bank_tree.get_children()]:
                 bdata.append([str(d), str(ttyp), f"{float(amt):.2f}", str(desc)])
             bdata.append(["", "Toplam", self.bank_total_var.get(), ""])
-            bt = Table(bdata, hAlign='LEFT', colWidths=[90, 50, 60, 280])
+            # Widen Tarih and Tür columns for readability
+            bt = Table(bdata, hAlign='LEFT', colWidths=[110, 140, 70, 220])
             bt.setStyle(TableStyle([
                 ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                 ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (2,1), (2,-1), 'RIGHT'),
                 ( 'FONTNAME', (0,0), (-1,0), (font_bold or font_reg or 'Helvetica-Bold')),
-                ( 'FONTNAME', (0,-1), (-1,-1), font_bold if font_bold else 'Helvetica-Bold'),
+                ( 'FONTNAME', (0,-1), (-1,-1), (font_bold or font_reg or 'Helvetica-Bold')),
             ]))
             flows.append(bt)
         else:
@@ -750,7 +786,7 @@ class ReportsFrame(tk.Frame):
                 ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (2,1), (2,-1), 'RIGHT'),
                 ('ALIGN', (4,1), (7,-1), 'RIGHT'),
-                ( 'FONTNAME', (0,0), (-1,0), font_bold if font_bold else 'Helvetica-Bold'),
+                ( 'FONTNAME', (0,0), (-1,0), (font_bold or font_reg or 'Helvetica-Bold')),
             ]))
             flows.append(t)
 

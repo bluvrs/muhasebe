@@ -172,18 +172,36 @@ class LedgerFrame(tk.Frame):
         sel = self.tree.selection()
         if not sel:
             return
-        _id, date, typ, amount, desc, invoice_no, company = self.tree.item(sel[0], "values")
-        self.combo_type.set(typ)
-        self.entry_date.delete(0, tk.END)
-        self.entry_date.insert(0, date)
-        self.entry_amount.delete(0, tk.END)
-        self.entry_amount.insert(0, amount)
-        self.entry_desc.delete(0, tk.END)
-        self.entry_desc.insert(0, desc)
-        self.entry_invoice.delete(0, tk.END)
-        self.entry_invoice.insert(0, invoice_no)
-        self.entry_company.delete(0, tk.END)
-        self.entry_company.insert(0, company)
+        _id, d, typ, amount, desc, invoice_no, company = self.tree.item(sel[0], "values")
+        try:
+            self.combo_type.set(typ)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_has_datepicker", False):
+                # d expected 'YYYY-MM-DD'
+                try:
+                    y, m, dd = map(int, str(d).split('-'))
+                    from datetime import date as _date
+                    self.entry_date.set_date(_date(y, m, dd))
+                except Exception:
+                    pass
+            else:
+                self.entry_date.delete(0, tk.END)
+                self.entry_date.insert(0, d)
+        except Exception:
+            pass
+        try:
+            self.entry_amount.delete(0, tk.END)
+            self.entry_amount.insert(0, str(amount))
+            self.entry_desc.delete(0, tk.END)
+            self.entry_desc.insert(0, desc)
+            self.entry_invoice.delete(0, tk.END)
+            self.entry_invoice.insert(0, invoice_no)
+            self.entry_company.delete(0, tk.END)
+            self.entry_company.insert(0, company)
+        except Exception:
+            pass
         self._toggle_invoice()
 
     # CRUD

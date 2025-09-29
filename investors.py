@@ -175,8 +175,20 @@ class InvestorsFrame(tk.Frame):
         self.entry_phone.insert(0, phone)
         self.entry_capital.delete(0, tk.END)
         self.entry_capital.insert(0, cap_init)
-        self.entry_date.delete(0, tk.END)
-        self.entry_date.insert(0, d)
+        try:
+            if isinstance(self.entry_date, tk.Entry):
+                self.entry_date.delete(0, tk.END)
+                self.entry_date.insert(0, d)
+            else:
+                # DateEntry: parse ISO date safely
+                try:
+                    y, m, dd = map(int, str(d).split('-'))
+                    from datetime import date as _date
+                    self.entry_date.set_date(_date(y, m, dd))
+                except Exception:
+                    pass
+        except Exception:
+            pass
         # Load notes for selected id
         row = None
         try:
