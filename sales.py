@@ -2,6 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
+from datetime import datetime
 
 DB_NAME = "coop.db"
 
@@ -46,6 +47,11 @@ class SalesFrame(tk.Frame):
         # Totals + actions
         bottom = tk.Frame(self)
         bottom.pack(fill="x", padx=20, pady=(0, 10))
+        # Sale date controls
+        tk.Label(bottom, text="Tarih:").pack(side="left")
+        self.entry_date = tk.Entry(bottom, width=20)
+        self.entry_date.pack(side="left", padx=(6, 6))
+        tk.Button(bottom, text="Simdi", command=self._set_now).pack(side="left", padx=(0, 20))
         self.total_var = tk.StringVar(value="0.00")
         tk.Label(bottom, text="Genel Toplam:").pack(side="left")
         tk.Label(bottom, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
@@ -56,6 +62,7 @@ class SalesFrame(tk.Frame):
         self.entry_scan.bind("<Return>", lambda _e: self.add_to_cart())
         self.entry_qty.bind("<Return>", lambda _e: self.add_to_cart())
 
+        self._set_now()
         self._recalc_total()
 
     def on_show(self, **kwargs) -> None:
@@ -70,6 +77,12 @@ class SalesFrame(tk.Frame):
             self.controller.logout()
 
     # Helpers
+    def _set_now(self) -> None:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if hasattr(self, 'entry_date'):
+            self.entry_date.delete(0, tk.END)
+            self.entry_date.insert(0, now)
+
     def _parse_qty(self, s: str) -> float:
         try:
             s = s.replace(",", ".")
@@ -156,7 +169,8 @@ class SalesFrame(tk.Frame):
         cur = conn.cursor()
         try:
             # Create sale
-            cur.execute("INSERT INTO sales (total) VALUES (?)", (total,))
+            date_str = (self.entry_date.get().strip() if hasattr(self, 'entry_date') else "") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cur.execute("INSERT INTO sales (date, total) VALUES (?, ?)", (date_str, total))
             sale_id = cur.lastrowid
             # Insert items and update stock
             for pid, _name, _barcode, price, qty, _line_total in items:
@@ -168,6 +182,11 @@ class SalesFrame(tk.Frame):
             # Add to ledger as income
             cur.execute(
                 "INSERT INTO ledger (type, amount, description) VALUES ('gelir', ?, ?)",
+                (total, f"Satis #{sale_id}"),
+            )
+            # Add to cashbook as cash-in
+            cur.execute(
+                "INSERT INTO cashbook (type, amount, description) VALUES ('in', ?, ?)",
                 (total, f"Satis #{sale_id}"),
             )
             conn.commit()

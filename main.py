@@ -50,11 +50,17 @@ def init_db() -> None:
             name TEXT NOT NULL,
             barcode TEXT UNIQUE,
             price REAL NOT NULL DEFAULT 0,
+            cost REAL NOT NULL DEFAULT 0,
             stock REAL NOT NULL DEFAULT 0,
             unit TEXT NOT NULL DEFAULT 'adet'
         )
         """
     )
+    # Migration: add cost column if missing (for existing DBs)
+    cursor.execute("PRAGMA table_info(products)")
+    cols = [r[1] for r in cursor.fetchall()]
+    if 'cost' not in cols:
+        cursor.execute("ALTER TABLE products ADD COLUMN cost REAL NOT NULL DEFAULT 0")
     # Simple ledger table for income (gelir) and outcome (gider)
     cursor.execute(
         """
@@ -63,10 +69,19 @@ def init_db() -> None:
             date TEXT NOT NULL DEFAULT (date('now')),
             type TEXT NOT NULL CHECK(type IN ('gelir','gider')),
             amount REAL NOT NULL,
-            description TEXT
+            description TEXT,
+            invoice_no TEXT,
+            company TEXT
         )
         """
     )
+    # Migration: add invoice_no/company to ledger if missing
+    cursor.execute("PRAGMA table_info(ledger)")
+    _cols = [r[1] for r in cursor.fetchall()]
+    if 'invoice_no' not in _cols:
+        cursor.execute("ALTER TABLE ledger ADD COLUMN invoice_no TEXT")
+    if 'company' not in _cols:
+        cursor.execute("ALTER TABLE ledger ADD COLUMN company TEXT")
     # Sales header and lines
     cursor.execute(
         """
@@ -87,6 +102,29 @@ def init_db() -> None:
             price REAL NOT NULL,
             FOREIGN KEY(sale_id) REFERENCES sales(id) ON DELETE CASCADE,
             FOREIGN KEY(product_id) REFERENCES products(id)
+        )
+        """
+    )
+    # Cashbook and Bankbook for cash/bank tracking
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cashbook (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL DEFAULT (datetime('now')),
+            type TEXT NOT NULL CHECK(type IN ('in','out')),
+            amount REAL NOT NULL,
+            description TEXT
+        )
+        """
+    )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bankbook (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL DEFAULT (datetime('now')),
+            type TEXT NOT NULL CHECK(type IN ('in','out')),
+            amount REAL NOT NULL,
+            description TEXT
         )
         """
     )
@@ -143,6 +181,8 @@ class App(tk.Tk):
         super().__init__()
         self.title("Kooperatif Giris")
         self.minsize(800, 600)
+        # Start maximized when the app launches
+        self._maximize_startup()
         self.frames: Dict[Type[tk.Frame], tk.Frame] = {}
         self.active_user: Optional[Dict[str, str]] = None
 
@@ -171,6 +211,23 @@ class App(tk.Tk):
         if hasattr(frame, "on_show"):
             frame.on_show(**kwargs)
         frame.tkraise()
+
+    def _maximize_startup(self) -> None:
+        # Try native maximize first (works on Windows/Linux)
+        try:
+            self.state("zoomed")
+            return
+        except Exception:
+            pass
+        # Fallback: manually size to screen
+        try:
+            self.update_idletasks()
+            w = self.winfo_screenwidth()
+            h = self.winfo_screenheight()
+            self.geometry(f"{w}x{h}+0+0")
+        except Exception:
+            # If anything fails, keep default size
+            pass
 
     def authenticate(self, username: str, password: str) -> None:
         conn = sqlite3.connect(DB_NAME)

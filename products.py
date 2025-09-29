@@ -23,18 +23,20 @@ class ProductsFrame(tk.Frame):
         tk.Button(search_bar, text="Temizle", command=self.clear_search).pack(side="left", padx=(8, 0))
 
         # Products list
-        columns = ("id", "name", "barcode", "price", "stock", "unit")
+        columns = ("id", "name", "barcode", "price", "cost", "stock", "unit")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
         self.tree.heading("id", text="ID")
         self.tree.heading("name", text="Isim")
         self.tree.heading("barcode", text="Barkod")
         self.tree.heading("price", text="Fiyat")
+        self.tree.heading("cost", text="Maliyet")
         self.tree.heading("stock", text="Stok")
         self.tree.heading("unit", text="Birim")
         self.tree.column("id", width=40, anchor="center")
         self.tree.column("name", width=220)
         self.tree.column("barcode", width=160)
         self.tree.column("price", width=100, anchor="e")
+        self.tree.column("cost", width=100, anchor="e")
         self.tree.column("stock", width=80, anchor="e")
         self.tree.column("unit", width=80, anchor="center")
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
@@ -64,6 +66,10 @@ class ProductsFrame(tk.Frame):
         self.combo_unit = ttk.Combobox(form, values=["adet", "kg", "lt", "paket"], state="readonly")
         self.combo_unit.set("adet")
         self.combo_unit.grid(row=0, column=5, sticky="w")
+
+        tk.Label(form, text="Maliyet").grid(row=1, column=4, sticky="w")
+        self.entry_cost = tk.Entry(form)
+        self.entry_cost.grid(row=1, column=5, sticky="ew")
 
         form.columnconfigure(1, weight=2)
         form.columnconfigure(3, weight=1)
@@ -114,26 +120,35 @@ class ProductsFrame(tk.Frame):
         if keyword:
             kw = f"%{keyword}%"
             cur.execute(
-                "SELECT id, name, barcode, price, stock, unit FROM products WHERE name LIKE ? OR barcode LIKE ? ORDER BY id",
+                "SELECT id, name, barcode, price, cost, stock, unit FROM products WHERE name LIKE ? OR barcode LIKE ? ORDER BY id",
                 (kw, kw),
             )
         else:
-            cur.execute("SELECT id, name, barcode, price, stock, unit FROM products ORDER BY id")
-        for pid, name, barcode, price, stock, unit in cur.fetchall():
-            self.tree.insert("", "end", values=(pid, name, barcode or "", f"{price:.2f}", f"{stock:g}", unit))
+            cur.execute("SELECT id, name, barcode, price, cost, stock, unit FROM products ORDER BY id")
+        for pid, name, barcode, price, cost, stock, unit in cur.fetchall():
+            self.tree.insert(
+                "",
+                "end",
+                values=(pid, name, barcode or "", f"{price:.2f}", f"{cost:.2f}", f"{stock:g}", unit),
+            )
         conn.close()
 
     def on_select(self, _event=None) -> None:
         sel = self.tree.selection()
         if not sel:
             return
-        _id, name, barcode, price, stock, unit = self.tree.item(sel[0], "values")
+        _id, name, barcode, price, cost, stock, unit = self.tree.item(sel[0], "values")
         self.entry_name.delete(0, tk.END)
         self.entry_name.insert(0, name)
         self.entry_barcode.delete(0, tk.END)
         self.entry_barcode.insert(0, barcode)
         self.entry_price.delete(0, tk.END)
         self.entry_price.insert(0, price)
+        # Cost
+        if not hasattr(self, 'entry_cost'):
+            self.entry_cost = tk.Entry(self)
+        self.entry_cost.delete(0, tk.END)
+        self.entry_cost.insert(0, cost)
         self.entry_stock.delete(0, tk.END)
         self.entry_stock.insert(0, stock)
         self.combo_unit.set(unit)
@@ -142,6 +157,7 @@ class ProductsFrame(tk.Frame):
         name = self.entry_name.get().strip()
         barcode = self.entry_barcode.get().strip() or None
         price = self._parse_float(self.entry_price.get().strip(), 0.0)
+        cost = self._parse_float(getattr(self, 'entry_cost', self.entry_price).get().strip(), 0.0)
         stock = self._parse_float(self.entry_stock.get().strip(), 0.0)
         unit = (self.combo_unit.get() or "adet").strip()
 
@@ -152,8 +168,8 @@ class ProductsFrame(tk.Frame):
             conn = sqlite3.connect(DB_NAME)
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO products (name, barcode, price, stock, unit) VALUES (?, ?, ?, ?, ?)",
-                (name, barcode, price, stock, unit),
+                "INSERT INTO products (name, barcode, price, cost, stock, unit) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, barcode, price, cost, stock, unit),
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -170,6 +186,7 @@ class ProductsFrame(tk.Frame):
         name = self.entry_name.get().strip()
         barcode = self.entry_barcode.get().strip() or None
         price = self._parse_float(self.entry_price.get().strip(), 0.0)
+        cost = self._parse_float(getattr(self, 'entry_cost', self.entry_price).get().strip(), 0.0)
         stock = self._parse_float(self.entry_stock.get().strip(), 0.0)
         unit = (self.combo_unit.get() or "adet").strip()
         if not name:
@@ -179,8 +196,8 @@ class ProductsFrame(tk.Frame):
         cur = conn.cursor()
         try:
             cur.execute(
-                "UPDATE products SET name = ?, barcode = ?, price = ?, stock = ?, unit = ? WHERE id = ?",
-                (name, barcode, price, stock, unit, pid),
+                "UPDATE products SET name = ?, barcode = ?, price = ?, cost = ?, stock = ?, unit = ? WHERE id = ?",
+                (name, barcode, price, cost, stock, unit, pid),
             )
             conn.commit()
         except sqlite3.IntegrityError:
