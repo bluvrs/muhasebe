@@ -29,7 +29,7 @@ class InvestorsFrame(tk.Frame):
         tk.Label(pool, text="Yatırım Havuzu % (Ortaklığa açık pay)").pack(side="left")
         self.entry_pool = tk.Entry(pool, width=6)
         self.entry_pool.pack(side="left", padx=(6, 6))
-        tk.Button(pool, text="Kaydet", command=self.save_pool_percent).pack(side="left")
+        tk.Button(pool, text="Kaydet", command=self.save_pool_percent, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
         # Live computed label
         self.lbl_pool_info = tk.Label(pool, text="")
         self.lbl_pool_info.pack(side="left", padx=(12, 0))
@@ -104,9 +104,9 @@ class InvestorsFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(tab_list)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        tk.Button(btns, text="Ekle", command=self.add_investor).pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_investor).pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_investor).pack(side="left")
+        tk.Button(btns, text="Ekle", command=self.add_investor, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(btns, text="Guncelle", command=self.update_investor, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
+        tk.Button(btns, text="Sil", command=self.delete_investor, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
 
         # Transactions section
         sep = ttk.Separator(tab_tx, orient="horizontal")
@@ -135,9 +135,9 @@ class InvestorsFrame(tk.Frame):
 
         tx_btns = tk.Frame(tab_tx)
         tx_btns.pack(fill="x", padx=20, pady=(6, 6))
-        tk.Button(tx_btns, text="Katki Ekle", command=lambda: self.add_tx('contribution')).pack(side="left")
-        tk.Button(tx_btns, text="Cekim Ekle", command=lambda: self.add_tx('withdrawal')).pack(side="left", padx=(8, 0))
-        tk.Button(tx_btns, text="Islemi Sil", command=self.delete_tx).pack(side="left", padx=(8, 0))
+        tk.Button(tx_btns, text="Katki Ekle", command=lambda: self.add_tx('contribution'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(tx_btns, text="Cekim Ekle", command=lambda: self.add_tx('withdrawal'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
+        tk.Button(tx_btns, text="Islemi Sil", command=self.delete_tx, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
 
         tx_cols = ("id", "date", "type", "amount", "notes")
         # Give more room to transactions
@@ -471,5 +471,4 @@ class InvestorsFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh()
-
 

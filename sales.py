@@ -40,8 +40,8 @@ class SalesFrame(tk.Frame):
         self.entry_qty.pack(side="left", padx=(6, 6))
         # On focus out, clamp to minimum 1
         self.entry_qty.bind('<FocusOut>', lambda _e: self._qty_clamp(self.entry_qty))
-        tk.Button(sb, text="Ekle", command=self.add_to_cart).pack(side="left")
-        tk.Button(sb, text="Sepeti Temizle", command=self.clear_cart).pack(side="left", padx=(8, 0))
+        tk.Button(sb, text="Ekle", command=self.add_to_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(sb, text="Sepeti Temizle", command=self.clear_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
 
         # Cart
         columns = ("product_id", "name", "barcode", "price", "qty", "total")
@@ -76,7 +76,7 @@ class SalesFrame(tk.Frame):
         else:
             self.entry_date = tk.Entry(left_box, width=20)
         self.entry_date.pack(side="left", padx=(6, 6))
-        tk.Button(left_box, text="Şimdi", command=self._set_now).pack(side="left", padx=(0, 20))
+        tk.Button(left_box, text="Şimdi", command=self._set_now, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(0, 20))
         self.total_var = tk.StringVar(value="0.00")
         tk.Label(left_box, text="Genel Toplam:").pack(side="left")
         tk.Label(left_box, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
@@ -95,7 +95,7 @@ class SalesFrame(tk.Frame):
         tk.Label(pay_box, text="Paraüstü:", bg=pay_box.cget('bg')).pack(side="left", pady=6)
         self.change_var = tk.StringVar(value="0.00")
         tk.Label(pay_box, textvariable=self.change_var, font=("Arial", 12, "bold"), bg=pay_box.cget('bg')).pack(side="left", padx=(6, 12), pady=6)
-        btn = tk.Button(pay_box, text="Satışı Tamamla", command=self.complete_sale)
+        btn = tk.Button(pay_box, text="Satışı Tamamla", command=self.complete_sale, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff")
         btn.pack(side='left', padx=(6, 8), pady=6)
         # Enlarge button approximately to 100x50 using internal padding
         btn.pack_configure(ipadx=24, ipady=6)
@@ -482,7 +482,7 @@ class ReturnFrame(tk.Frame):
         tk.Label(sb, text="Barkod/İsim:").pack(side="left")
         self.entry_scan = tk.Entry(sb)
         self.entry_scan.pack(side="left", fill="x", expand=True, padx=(6, 6))
-        tk.Button(sb, text="Satışları Listele", command=self._list_sales_for_product).pack(side="left", padx=(0, 10))
+        tk.Button(sb, text="Satışları Listele", command=self._list_sales_for_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(0, 10))
         tk.Label(sb, text="İade Adedi:").pack(side="left")
         vcmd = (self.register(lambda s: s.isdigit() or s==''), '%P')
         # Numeric up-down for quantity (integer only)
@@ -491,8 +491,8 @@ class ReturnFrame(tk.Frame):
         self.entry_qty.insert(0, "1")
         self.entry_qty.pack(side="left", padx=(6, 6))
         self.entry_qty.bind('<FocusOut>', lambda _e: self._qty_clamp(self.entry_qty))
-        tk.Button(sb, text="Ekle", command=self.add_to_cart).pack(side="left")
-        tk.Button(sb, text="Sepeti Temizle", command=self.clear_cart).pack(side="left", padx=(8, 0))
+        tk.Button(sb, text="Ekle", command=self.add_to_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(sb, text="Sepeti Temizle", command=self.clear_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
 
         # Past purchases list
         purchases_frame = tk.Frame(self)
@@ -544,7 +544,7 @@ class ReturnFrame(tk.Frame):
         else:
             self.entry_date = tk.Entry(left_box, width=20)
         self.entry_date.pack(side="left", padx=(6, 6))
-        tk.Button(left_box, text="Şimdi", command=self._set_now).pack(side="left", padx=(0, 20))
+        tk.Button(left_box, text="Şimdi", command=self._set_now, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(0, 20))
         self.total_var = tk.StringVar(value="0.00")
         tk.Label(left_box, text="İade Tutarı:").pack(side="left")
         tk.Label(left_box, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
@@ -560,7 +560,7 @@ class ReturnFrame(tk.Frame):
         tk.Label(pay_box, text="Fark:", bg=pay_box.cget('bg')).pack(side="left", pady=6)
         self.change_var = tk.StringVar(value="0.00")
         tk.Label(pay_box, textvariable=self.change_var, font=("Arial", 12, "bold"), bg=pay_box.cget('bg')).pack(side="left", padx=(6,12), pady=6)
-        btnr = tk.Button(pay_box, text="İadeyi Tamamla", command=self.complete_return)
+        btnr = tk.Button(pay_box, text="İadeyi Tamamla", command=self.complete_return, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff")
         btnr.pack(side='left', padx=(6,8), pady=6)
         btnr.pack_configure(ipadx=24, ipady=6)
         # Track user edits on paid field for return flow

@@ -244,8 +244,8 @@ class ReportsFrame(tk.Frame):
         self._build_inventory_tab()
 
         # Header actions
-        tk.Button(header, text="PDF", command=self._export_pdf).pack(side="right", padx=(0, 8), pady=(16, 6))
-        tk.Button(header, text="Yazdır", command=self._print_preview).pack(side="right", padx=(0, 8), pady=(16, 6))
+        tk.Button(header, text="PDF", command=self._export_pdf, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="right", padx=(0, 8), pady=(16, 6))
+        tk.Button(header, text="Yazdır", command=self._print_preview, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="right", padx=(0, 8), pady=(16, 6))
 
         self.refresh()
 
@@ -265,7 +265,7 @@ class ReportsFrame(tk.Frame):
     def _build_daily_tab(self) -> None:
         bar = tk.Frame(self.daily_tab)
         bar.pack(fill="x", padx=20, pady=(10, 6))
-        tk.Button(bar, text="<", width=3, command=lambda: self._change_day(-1)).pack(side="left")
+        tk.Button(bar, text="<", width=3, command=lambda: self._change_day(-1), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
         if _DateEntry is not None:
             self.daily_date = _DateEntry(bar, date_pattern="yyyy-mm-dd", state="readonly")
             try:
@@ -276,9 +276,9 @@ class ReportsFrame(tk.Frame):
             self.daily_date = tk.Entry(bar, width=12)
             self.daily_date.insert(0, date.today().isoformat())
         self.daily_date.pack(side="left", padx=(6, 6))
-        tk.Button(bar, text=">", width=3, command=lambda: self._change_day(1)).pack(side="left")
-        tk.Button(bar, text="Bugün", command=self._set_today).pack(side="left", padx=(6, 12))
-        tk.Button(bar, text="Yenile", command=self._refresh_daily).pack(side="left")
+        tk.Button(bar, text=">", width=3, command=lambda: self._change_day(1), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(bar, text="Bugün", command=self._set_today, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(6, 12))
+        tk.Button(bar, text="Yenile", command=self._refresh_daily, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
 
         columns = ("id", "time", "total")
         self.sales_tree = ttk.Treeview(self.daily_tab, columns=columns, show="headings", height=12)
@@ -366,8 +366,8 @@ class ReportsFrame(tk.Frame):
         tk.Label(actions, text="Açıklama").grid(row=0, column=2, sticky="w")
         self.cash_desc = tk.Entry(actions, width=40)
         self.cash_desc.grid(row=0, column=3, sticky="w", padx=(6, 10))
-        tk.Button(actions, text="Kasaya Ekle", command=lambda: self._cash_op('in')).grid(row=0, column=4, padx=(6, 0))
-        tk.Button(actions, text="Kasadan Çık", command=lambda: self._cash_op('out')).grid(row=0, column=5, padx=(6, 0))
+        tk.Button(actions, text="Kasaya Ekle", command=lambda: self._cash_op('in'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").grid(row=0, column=4, padx=(6, 0))
+        tk.Button(actions, text="Kasadan Çık", command=lambda: self._cash_op('out'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").grid(row=0, column=5, padx=(6, 0))
 
         # Transfer to bank
         tk.Label(actions, text="Bankaya aktar tutarı").grid(row=1, column=0, sticky="w")
@@ -376,7 +376,7 @@ class ReportsFrame(tk.Frame):
         tk.Label(actions, text="Açıklama").grid(row=1, column=2, sticky="w")
         self.transfer_desc = tk.Entry(actions, width=40)
         self.transfer_desc.grid(row=1, column=3, sticky="w", padx=(6, 10))
-        tk.Button(actions, text="Bankaya Aktar", command=self._transfer_to_bank).grid(row=1, column=4, padx=(6, 0))
+        tk.Button(actions, text="Bankaya Aktar", command=self._transfer_to_bank, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").grid(row=1, column=4, padx=(6, 0))
 
         actions.columnconfigure(3, weight=1)
 

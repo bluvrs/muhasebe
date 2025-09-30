@@ -24,8 +24,8 @@ class ProductsFrame(tk.Frame):
         tk.Label(search_bar, text="Ara (isim/barkod):").pack(side="left")
         self.entry_search = tk.Entry(search_bar)
         self.entry_search.pack(side="left", fill="x", expand=True, padx=(8, 8))
-        tk.Button(search_bar, text="Ara", command=self.search).pack(side="left")
-        tk.Button(search_bar, text="Temizle", command=self.clear_search).pack(side="left", padx=(8, 0))
+        tk.Button(search_bar, text="Ara", command=self.search, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(search_bar, text="Temizle", command=self.clear_search, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
 
         # Products list
         columns = ("id", "name", "barcode", "price", "cost", "stock", "unit")
@@ -86,9 +86,9 @@ class ProductsFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        tk.Button(btns, text="Ekle", command=self.add_product).pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_product).pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_product).pack(side="left")
+        tk.Button(btns, text="Ekle", command=self.add_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(btns, text="Guncelle", command=self.update_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
+        tk.Button(btns, text="Sil", command=self.delete_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
 
         self.refresh()
 

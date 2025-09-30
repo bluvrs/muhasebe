@@ -192,8 +192,8 @@ class App(tk.Tk):
             base_family = tkfont.nametofont("TkDefaultFont").actual("family")
         except Exception:
             base_family = "Arial"
-        menu_font = tkfont.Font(name="MenuButtonFont", family=base_family, size=56, weight="bold")
-        print("MenuButtonFont actual:", menu_font.actual())
+        menu_font = tkfont.Font(name="MenuButtonFont", family=base_family, size=32, weight="bold")
+       
         style = ttk.Style()
         style.theme_use("clam")
         style.configure(
@@ -343,6 +343,60 @@ class App(tk.Tk):
             return 2.0, None
 
     def refresh_theme(self) -> None:
+        # Apply the theme first
+        try:
+            apply_theme(self, scale=getattr(self, 'ui_scale', 1.5), theme_name=getattr(self, 'saved_theme', None) or 'light')
+        except Exception:
+            pass
+
+        # Recolor classic Tk widgets (Labels, Checkbuttons, Frames, Buttons)
+        def recolor_widgets(widget):
+            import tkinter as tk
+            # Determine the active theme
+            theme = getattr(self, 'saved_theme', 'light').lower()
+            # Label
+            if isinstance(widget, tk.Label):
+                try:
+                    if theme == "dark":
+                        widget.configure(bg="#1e2023", fg="white")
+                    else:
+                        widget.configure(bg="white", fg="black")
+                except Exception:
+                    pass
+            # Checkbutton
+            elif isinstance(widget, tk.Checkbutton):
+                try:
+                    if theme == "dark":
+                        widget.configure(bg="#1e2023", fg="white", selectcolor="#2a2f33")
+                    else:
+                        widget.configure(bg="white", fg="black", selectcolor="white")
+                except Exception:
+                    pass
+            # Button
+            elif isinstance(widget, tk.Button):
+                try:
+                    widget.configure(bg="#1e2023", fg="white", activebackground="#2a2f33", activeforeground="white")
+                except Exception:
+                    pass
+            # Frame
+            elif isinstance(widget, tk.Frame):
+                try:
+                    if theme == "dark":
+                        widget.configure(bg="#1e2023")
+                    else:
+                        widget.configure(bg="white")
+                except Exception:
+                    pass
+            # Recurse into children
+            for child in widget.winfo_children():
+                recolor_widgets(child)
+
+        try:
+            recolor_widgets(self)
+        except Exception:
+            pass
+
+        # Now, after theme applied and recoloring, notify all frames of theme change
         try:
             for frame in self.frames.values():
                 if hasattr(frame, 'on_theme_changed'):
@@ -445,7 +499,7 @@ class LoginFrame(tk.Frame):
         self.entry_pass.pack(fill='x', padx=24, pady=(0, 10))
         self.entry_pass.bind('<Return>', lambda _e: self.do_login())
 
-        ttk.Button(inner, text='Giris Yap', command=self.do_login).pack(pady=(8, 6))
+        ttk.Button(inner, text='Giris Yap', command=self.do_login, style='Solid.TButton').pack(pady=(8, 6))
 
 
     def _on_return(self, event: tk.Event) -> None:  # type: ignore[name-defined]
@@ -467,7 +521,13 @@ class LoginFrame(tk.Frame):
         self.entry_user.focus_set()
 
     def on_theme_changed(self) -> None:
-        # Rebuild card to refresh tinted backgrounds with current theme
+        # Refresh style for MenuTile buttons if present
+        ui_scale = getattr(self.controller, "ui_scale", 1.0)
+        for frame in self.controller.frames.values():
+            if hasattr(frame, "_buttons"):
+                for btn in frame._buttons:
+                    if hasattr(btn, "refresh_style"):
+                        btn.refresh_style(scale=ui_scale)
         self._build_login_card()
 
 
@@ -475,13 +535,25 @@ class LoginFrame(tk.Frame):
 # --- MenuTile class definition ---
 class MenuTile(tk.Label):
     _default_fg = "white"
-    _base_size = 32
+    _base_size = 24
 
     def __init__(self, parent, icon, text, command, scale: float = 1.0, *args, **kwargs):
         display_text = f"{icon}\n\n{text}"
-        self._default_bg = "#1e2023"
+        # Determine theme from parent.controller if possible
+        theme = "light"
+        controller = getattr(parent, "controller", None)
+        if controller is not None:
+            theme = getattr(controller, "saved_theme", "light")
+        if theme is None:
+            theme = "light"
+        theme = str(theme).lower()
+        if theme == "dark":
+            self._default_bg = "white"
+            self._default_fg = "black"
+        else:
+            self._default_bg = "#1e2023"
+            self._default_fg = "white"
         self._hover_bg = "#2a2f33"
-        self._default_fg = self._default_fg
         self._base_size = self._base_size
         super().__init__(
             parent,
@@ -493,11 +565,15 @@ class MenuTile(tk.Label):
             *args,
             **kwargs
         )
+        # Add padding for larger menu buttons
+        self.configure(padx=20, pady=20)
         self._command = command
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
         self.bind("<Button-1>", self._on_click)
         self.configure(cursor="hand2", wraplength=300)
+        # Immediately set correct theme-based colors
+        self.refresh_style(scale)
 
     def _on_enter(self, event=None):
         self.configure(bg=self._hover_bg)
@@ -510,6 +586,25 @@ class MenuTile(tk.Label):
             self._command()
 
     def refresh_style(self, scale: float = 1.0):
+        # Try to get theme from controller if available
+        theme = "light"
+        controller = None
+        parent = self.master
+        if hasattr(parent, "controller"):
+            controller = parent.controller
+        elif hasattr(parent, "master") and hasattr(parent.master, "controller"):
+            controller = parent.master.controller
+        if controller is not None:
+            theme = getattr(controller, "saved_theme", "light")
+        if theme is None:
+            theme = "light"
+        theme = str(theme).lower()
+        if theme == "dark":
+            self._default_bg = "white"
+            self._default_fg = "black"
+        else:
+            self._default_bg = "#1e2023"
+            self._default_fg = "white"
         self.configure(
             bg=self._default_bg,
             fg=self._default_fg,
@@ -536,14 +631,17 @@ class RoleFrame(tk.Frame):
         user_holder.pack(pady=(0, 10), anchor='n')
         card, inner = rounded_outline(user_holder, radius=12, padding=10, border='#888')
         card.pack(anchor='center')
+        # Save card and inner for later theme updates
+        self.card = card
+        self.inner = inner
         try:
             tint = smart_tinted_bg(self)
             inner.configure(bg=tint)
         except Exception:
             pass
-        # Set a comfortable width for the card
+        # Set a comfortable width for the card, and increase height to 96
         try:
-            card.configure(width=520, height=64)
+            card.configure(width=520, height=96)
             card.pack_propagate(False)
         except Exception:
             pass
@@ -551,10 +649,10 @@ class RoleFrame(tk.Frame):
         header_row = tk.Frame(inner, bg=inner.cget('bg'))
         header_row.pack(fill='x')
         self.user_label = tk.Label(header_row, text="", bg=inner.cget('bg'))
-        self.user_label.pack(side='left', padx=12, pady=6)
+        self.user_label.pack(side='left', padx=12, pady=6, fill='x', expand=True)
         logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Menu.TButton')
         # Use default ttk font for logout; MenuButtonFont is only for menu tiles
-        logout_btn.pack(side='right', padx=12, pady=6)
+        logout_btn.pack(side='right', padx=12, pady=6, anchor='e')
 
         if description:
             tk.Label(self, text=description, wraplength=360, justify="center").pack(pady=20)
@@ -632,12 +730,106 @@ class RoleFrame(tk.Frame):
         # Removed bottom-placed logout; now shown next to username
 
     def on_theme_changed(self) -> None:
+        # Determine theme
+        theme = getattr(self.controller, "saved_theme", None)
+        if not theme:
+            theme = "light"
+        theme = str(theme).lower()
+        # Theme-based colors
+        if theme == "dark":
+            card_bg = "white"
+            inner_bg = "white"
+            header_row_bg = "#1e2023"
+            user_label_bg = "#1e2023"
+            user_label_fg = "white"
+            logout_btn_bg = "white"
+            logout_btn_fg = "black"
+            logout_btn_active_bg = "#ddd"
+        else:
+            card_bg = "#1e2023"
+            inner_bg = "#1e2023"
+            header_row_bg = "white"
+            user_label_bg = "white"
+            user_label_fg = "black"
+            logout_btn_bg = "#1e2023"
+            logout_btn_fg = "white"
+            logout_btn_active_bg = "#2a2f33"
+
         # Refresh style for MenuTile buttons if present
         ui_scale = getattr(self.controller, "ui_scale", 1.0)
         if hasattr(self, "_buttons"):
             for btn in self._buttons:
                 if hasattr(btn, "refresh_style"):
                     btn.refresh_style(scale=ui_scale)
+
+        # Update card and inner backgrounds if they exist
+        try:
+            self.card.configure(bg=card_bg)
+        except Exception:
+            pass
+        try:
+            self.inner.configure(bg=inner_bg)
+        except Exception:
+            pass
+        # Update header_row background if exists
+        header_row = None
+        if hasattr(self, "header_row"):
+            header_row = self.header_row
+        elif hasattr(self, "inner"):
+            # Try to find header_row as the first child of inner
+            try:
+                children = self.inner.winfo_children()
+                if children:
+                    header_row = children[0]
+                    self.header_row = header_row
+            except Exception:
+                pass
+        if header_row is not None:
+            try:
+                header_row.configure(bg=header_row_bg)
+            except Exception:
+                pass
+        # Update user_label background/foreground to match its parent
+        if hasattr(self, "user_label"):
+            try:
+                self.user_label.configure(bg=user_label_bg, fg=user_label_fg)
+            except Exception:
+                pass
+        # Update logout button style (search for it in header_row's children)
+        if header_row is not None:
+            try:
+                for child in header_row.winfo_children():
+                    # Try to find the logout button by text or widget type
+                    if isinstance(child, tk.Button) or isinstance(child, ttk.Button):
+                        # Try to match by text
+                        try:
+                            if getattr(child, "cget", lambda x: None)("text") == "Çıkış yap":
+                                # If it's a tk.Button, set directly; if ttk, fallback to configure
+                                try:
+                                    child.configure(
+                                        bg=logout_btn_bg,
+                                        fg=logout_btn_fg,
+                                        activebackground=logout_btn_active_bg,
+                                    )
+                                except Exception:
+                                    # For ttk.Button, use style if possible
+                                    style = ttk.Style()
+                                    style_name = "Logout.TButton"
+                                    style.configure(
+                                        style_name,
+                                        background=logout_btn_bg,
+                                        foreground=logout_btn_fg,
+                                    )
+                                    style.map(
+                                        style_name,
+                                        background=[("active", logout_btn_active_bg)],
+                                        foreground=[("active", logout_btn_fg)],
+                                    )
+                                    child.configure(style=style_name)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
     def on_show(self, username: str, role: str) -> None:
         self.user_label.config(text="Signed in as {} ({})".format(username, role))
@@ -690,7 +882,7 @@ class AdminFrame(RoleFrame):
                 controller.show_frame(_IF)  # type: ignore[arg-type]
             except Exception:
                 controller.show_placeholder("Yatırımcılar")
-        handlers["Yat��r��mc��lar"] = _show_investors
+        handlers["Yatırımcılar"] = _show_investors
         # Reports
         # Ensure Investors menu opens even with encoding/import issues
         def _open_investors():

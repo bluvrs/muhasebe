@@ -84,9 +84,9 @@ class LedgerFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(6, 8))
-        tk.Button(btns, text="Ekle", command=self.add_entry).pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_entry).pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_entry).pack(side="left")
+        tk.Button(btns, text="Ekle", command=self.add_entry, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(btns, text="Guncelle", command=self.update_entry, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
+        tk.Button(btns, text="Sil", command=self.delete_entry, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
 
         # List
         columns = ("id", "date", "type", "amount", "description", "invoice_no", "company")
@@ -347,4 +347,3 @@ class LedgerFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh()
-

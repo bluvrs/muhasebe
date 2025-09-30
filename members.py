@@ -51,10 +51,10 @@ class MembersFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        tk.Button(btns, text="Ekle", command=self.add_user).pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_user).pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_user).pack(side="left")
-        tk.Button(btns, text="Sifreyi Sifirla", command=self.reset_password).pack(side="left", padx=8)
+        tk.Button(btns, text="Ekle", command=self.add_user, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(btns, text="Guncelle", command=self.update_user, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
+        tk.Button(btns, text="Sil", command=self.delete_user, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        tk.Button(btns, text="Sifreyi Sifirla", command=self.reset_password, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
 
         self.refresh_users()
 

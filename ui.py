@@ -75,12 +75,12 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
             s = 1.0
         # Base sizes (unscaled). Keep modest defaults so 1.0 looks normal.
         base = {
-            'TkDefaultFont': 14,
-            'TkTextFont': 14,
-            'TkMenuFont': 16,
-            'TkHeadingFont': 16,
-            'TkTooltipFont': 14,
-            'MenuButtonFont': 96,
+            'TkDefaultFont': 12,
+            'TkTextFont': 12,
+            'TkMenuFont': 14,
+            'TkHeadingFont': 14,
+            'TkTooltipFont': 12,
+            'MenuButtonFont': 46,
         }
         for fname, bsize in base.items():
             try:
@@ -406,12 +406,9 @@ def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) 
                         # Check/Radiobuttons should blend with bg and use fg
                         elif isinstance(c, tk.Checkbutton) or isinstance(c, tk.Radiobutton):
                             c.configure(bg=bg, fg=fg, activebackground=bg, activeforeground=fg, selectcolor=bg)
-                        # Labels: leave bg as-is if manually tinted; only set fg for readability
+                        # Labels: leave bg as-is if manually tinted; do not recolor fg
                         elif isinstance(c, tk.Label):
-                            try:
-                                c.configure(fg=fg)
-                            except Exception:
-                                pass
+                            pass
                     except Exception:
                         pass
                 # Recurse

@@ -37,7 +37,7 @@ class SettingsFrame(tk.Frame):
                     pass
                 card.configure(width=req_w, height=height)
             except Exception:
-                # Ã–lÃ§Ã¼m baÅŸarÄ±sÄ±z olursa gÃ¼venli bir yÃ¼kseklik kullan
+                # Ölçüm başarısız olursa güvenli bir yükseklik kullan
                 card.configure(width=min_w, height=200)
         name_holder = tk.Frame(self)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
@@ -47,13 +47,13 @@ class SettingsFrame(tk.Frame):
         name_card.pack(anchor='center', fill='x')
         tint_name = smart_tinted_bg(self)
         name_inner.configure(bg=tint_name)
-        tk.Label(name_inner, text="Okul adı (Rapor BaÅŸlÄ±ÄŸÄ±)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
+        tk.Label(name_inner, text="Okul adı (Rapor Başlığı)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
         self.entry_school = ttk.Entry(row_name, width=40)
         # Metin kutusu ile buton arasÄ±nÄ± aÃ§mak iÃ§in boÅŸluklarÄ± artÄ±r
         self.entry_school.pack(side='left', padx=(0, 12))
-        tk.Button(row_name, text="Kaydet", command=self.save).pack(side='right', padx=(12, 0))
+        ttk.Button(row_name, text="Kaydet", command=self.save, style='Solid.TButton').pack(side='right', padx=(12, 0))
         # Kart yÃ¼ksekliÄŸini iÃ§eriÄŸe gÃ¶re ayarla (Kaydet butonu gÃ¶rÃ¼nÃ¼r kalsÄ±n)
         _autosize_card(name_card, name_inner, min_w=560, pad=12, min_h=180)
         name_card.pack_propagate(False)
@@ -69,7 +69,8 @@ class SettingsFrame(tk.Frame):
         theme_inner.configure(bg=tint_theme)
         tk.Label(theme_inner, text="Tema", font=("Arial", 12, "bold"), bg=tint_theme).pack(anchor='center')
         self.var_dark = tk.BooleanVar(value=False)
-        tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme).pack(anchor='center', pady=(6, 0))
+        self.theme_checkbox = tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
+        self.theme_checkbox.pack(anchor='center', pady=(6, 0))
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
 
@@ -82,7 +83,7 @@ class SettingsFrame(tk.Frame):
         scale_card.pack(anchor='center', fill='x')
         tint_scale = smart_tinted_bg(self)
         scale_inner.configure(bg=tint_scale)
-        tk.Label(scale_inner, text="YazÄ± Boyutu", font=("Arial", 12, "bold"), bg=tint_scale).pack(anchor='center')
+        tk.Label(scale_inner, text="Yazı Boyutu", font=("Arial", 12, "bold"), bg=tint_scale).pack(anchor='center')
         self.var_scale = tk.StringVar(value='2.0')
         radios = tk.Frame(scale_inner, bg=tint_scale)
         radios.pack(pady=(6, 0))
@@ -105,10 +106,10 @@ class SettingsFrame(tk.Frame):
         tk.Label(db_inner, text="Veri Tabanı", font=("Arial", 12, "bold"), bg=tint).pack(pady=(2, 6), anchor='center')
         btn_row = tk.Frame(db_inner, bg=tint)
         btn_row.pack(pady=4, anchor='center')
-        ttk.Button(btn_row, text="Yedekle", command=self.backup_db).pack(side='left', padx=6)
-        ttk.Button(btn_row, text="Sıfırla", command=self.reset_db).pack(side='left', padx=6)
+        ttk.Button(btn_row, text="Yedekle", command=self.backup_db, style='Solid.TButton').pack(side='left', padx=6)
+        ttk.Button(btn_row, text="Sıfırla", command=self.reset_db, style='Solid.TButton').pack(side='left', padx=6)
         # Restart button (hidden until reset)
-        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden BaÅŸlat", command=self.restart_app)
+        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden Başlat", command=self.restart_app, style='Solid.TButton')
 
         _autosize_card(db_card, db_inner, min_w=560, pad=12, min_h=180)
         db_card.pack_propagate(False)
@@ -123,7 +124,8 @@ class SettingsFrame(tk.Frame):
         self._load()
 
     def on_theme_changed(self) -> None:
-        """Refresh tinted card backgrounds and local container bg when theme changes."""
+        """Refresh tinted card backgrounds and local container bg when theme changes.
+        Also enforce fixed button/checkbutton/label styles for settings screen."""
         try:
             # Match this frame's bg to app bg
             app_bg = self.controller.cget('bg') if hasattr(self.controller, 'cget') else None
@@ -153,6 +155,62 @@ class SettingsFrame(tk.Frame):
                             pass
                 except Exception:
                     pass
+        except Exception:
+            pass
+
+        # Enforce fixed style for all Buttons, Checkbuttons, Labels (classic tk widgets) in this screen
+        def _update_widget_style_recursive(widget):
+            # Only classic tk widgets, skip ttk widgets
+            import tkinter
+            is_dark = bool(self.var_dark.get())
+            for child in widget.winfo_children():
+                try:
+                    cls = str(child.winfo_class())
+                    # Only classic widgets, not ttk
+                    if not cls.startswith('T'):
+                        parent_bg = widget.cget("bg") if hasattr(widget, "cget") else "#1e2023"
+                        # Button: special style for Kaydet, default for others
+                        if isinstance(child, tk.Button):
+                            btn_text = ""
+                            try:
+                                btn_text = child.cget("text")
+                            except Exception:
+                                pass
+                            # All buttons (including Kaydet) get the same dark style if is_dark,
+                            # or same as dark style for light theme (per instructions)
+                            if is_dark:
+                                child.configure(bg="#1e2023", fg="white",
+                                                activebackground="#2a2f33", activeforeground="white")
+                            else:
+                                child.configure(bg="#1e2023", fg="white",
+                                                activebackground="#2a2f33", activeforeground="white")
+                        # Checkbutton: parent bg, fg depends on theme, selectcolor=parent_bg
+                        elif isinstance(child, tk.Checkbutton):
+                            if is_dark:
+                                child.configure(bg=parent_bg, fg="white", selectcolor=parent_bg)
+                            else:
+                                child.configure(bg=parent_bg, fg="black", selectcolor=parent_bg)
+                        # Radiobutton: parent bg, fg depends on theme, selectcolor=parent_bg
+                        elif isinstance(child, tk.Radiobutton):
+                            if is_dark:
+                                child.configure(bg=parent_bg, fg="white", selectcolor=parent_bg)
+                            else:
+                                child.configure(bg=parent_bg, fg="black", selectcolor=parent_bg)
+                        # Label: parent bg, fg depends on theme
+                        elif isinstance(child, tk.Label):
+                            if is_dark:
+                                child.configure(bg=parent_bg, fg="white")
+                            else:
+                                child.configure(bg=parent_bg, fg="black")
+                        # Frame: parent bg
+                        elif isinstance(child, tk.Frame):
+                            child.configure(bg=parent_bg)
+                    # Recurse for all children
+                    _update_widget_style_recursive(child)
+                except Exception:
+                    pass
+        try:
+            _update_widget_style_recursive(self)
         except Exception:
             pass
 
@@ -187,7 +245,7 @@ class SettingsFrame(tk.Frame):
         cur.execute("SELECT value FROM settings WHERE key='ui_theme'")
         r_theme = cur.fetchone()
         conn.close()
-        self.var_dark.set(bool(r_theme and (str(r_theme[0]).lower() == 'dark')))
+        self._set_theme_var_safely(bool(r_theme and (str(r_theme[0]).lower() == 'dark')))
         # scale value
         try:
             conn = sqlite3.connect(DB_NAME)
@@ -276,7 +334,7 @@ class SettingsFrame(tk.Frame):
                 scale_val = 1.5
         except Exception:
             scale_val = 1.5
-        # Save
+        # Save to DB
         try:
             conn = sqlite3.connect(DB_NAME)
             cur = conn.cursor()
@@ -287,6 +345,12 @@ class SettingsFrame(tk.Frame):
             )
             conn.commit()
             conn.close()
+        except Exception:
+            pass
+        # Set scale in controller before applying theme
+        try:
+            self.controller.saved_scale = float(scale_val)
+            self.controller.ui_scale = float(scale_val)
         except Exception:
             pass
         # Apply only font scaling with current theme (no tk scaling)
@@ -300,12 +364,8 @@ class SettingsFrame(tk.Frame):
                 self.controller.set_min_window_for_scale(1.0)
         except Exception:
             pass
-        try:
-            self.controller.saved_scale = float(scale_val)
-            self.controller.ui_scale = float(scale_val)
-            self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
-        except Exception:
-            pass
+        # Only update status message at the end
+        self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
 
     # --- DB Utils ---
     def backup_db(self) -> None:
@@ -320,12 +380,12 @@ class SettingsFrame(tk.Frame):
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
             dst = os.path.join(bdir, f"{base}_{ts}{ext or ''}")
             shutil.copy2(DB_NAME, dst)
-            messagebox.showinfo("Yedekleme", f"Yedek alÄ±ndÄ±:\n{dst}")
+            messagebox.showinfo("Yedekleme", f"Yedek alındı:\n{dst}")
         except Exception as e:
             messagebox.showerror("Yedekleme HatasÄ±", str(e))
 
     def reset_db(self) -> None:
-        if not messagebox.askyesno("Sıfırlama", "VeriTabanınÄ± Sıfırlamak istediÄŸinize emin misiniz?\nMevcut dosya yedek kopyasÄ± alÄ±nacaktÄ±r."):
+        if not messagebox.askyesno("Sıfırlama", "Veri Tabanını Sıfırlamak istediğinize emin misiniz?\nMevcut dosya yedek kopyası alınacaktır."):
             return
         try:
             # Backup first
@@ -344,7 +404,7 @@ class SettingsFrame(tk.Frame):
                     main.init_db()
             except Exception:
                 pass
-            messagebox.showinfo("Sıfırlama", "VeriTabanı SıfırlandÄ±.")
+            messagebox.showinfo("Sıfırlama", "Veri Tabanı Sıfırlandı.")
             try:
                 # Show restart button after reset (centered row)
                 if hasattr(self, 'btn_restart') and str(self.btn_restart) not in (None, ''):
@@ -355,7 +415,7 @@ class SettingsFrame(tk.Frame):
             messagebox.showerror("Sıfırlama HatasÄ±", str(e))
 
     def restart_app(self) -> None:
-        if not messagebox.askyesno("Yeniden BaÅŸlat", "Uygulama yeniden baÅŸlatÄ±lsÄ±n mÄ±?"):
+        if not messagebox.askyesno("Yeniden Başlat", "Uygulama yeniden başlatılsın mı?"):
             return
         import subprocess, time
         try:
@@ -381,3 +441,10 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         os._exit(0)
+
+    def _set_theme_var_safely(self, value: bool):
+        try:
+            self.theme_checkbox.configure(command=None)
+            self.var_dark.set(value)
+        finally:
+            self.theme_checkbox.configure(command=self.on_theme_toggle)
