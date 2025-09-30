@@ -1,6 +1,7 @@
 import sqlite3
 import tkinter as tk
 from tkinter import messagebox, ttk
+import tkinter.font as tkfont
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
 from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action
@@ -186,6 +187,29 @@ def init_db() -> None:
 class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
+        # --- MenuButtonFont and style ---
+        try:
+            base_family = tkfont.nametofont("TkDefaultFont").actual("family")
+        except Exception:
+            base_family = "Arial"
+        menu_font = tkfont.Font(name="MenuButtonFont", family=base_family, size=56, weight="bold")
+        print("MenuButtonFont actual:", menu_font.actual())
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Menu.TButton",
+            font=menu_font,
+            foreground="white",
+            background="#1e2023",
+            anchor="center",
+            justify="center"
+        )
+        style.map(
+            "Menu.TButton",
+            background=[("active", "#2a2f33")],
+            foreground=[("active", "white")]
+        )
+        # --- End MenuButtonFont and style ---
         self.title("Kooperatif Giris")
         self.minsize(800, 600)
         # Start maximized when the app launches
@@ -447,6 +471,52 @@ class LoginFrame(tk.Frame):
         self._build_login_card()
 
 
+
+# --- MenuTile class definition ---
+class MenuTile(tk.Label):
+    _default_fg = "white"
+    _base_size = 32
+
+    def __init__(self, parent, icon, text, command, scale: float = 1.0, *args, **kwargs):
+        display_text = f"{icon}\n\n{text}"
+        self._default_bg = "#1e2023"
+        self._hover_bg = "#2a2f33"
+        self._default_fg = self._default_fg
+        self._base_size = self._base_size
+        super().__init__(
+            parent,
+            text=display_text,
+            bg=self._default_bg,
+            fg=self._default_fg,
+            font=("Arial", int(self._base_size * scale), "bold"),
+            justify="center",
+            *args,
+            **kwargs
+        )
+        self._command = command
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_click)
+        self.configure(cursor="hand2", wraplength=300)
+
+    def _on_enter(self, event=None):
+        self.configure(bg=self._hover_bg)
+
+    def _on_leave(self, event=None):
+        self.configure(bg=self._default_bg)
+
+    def _on_click(self, event=None):
+        if self._command:
+            self._command()
+
+    def refresh_style(self, scale: float = 1.0):
+        self.configure(
+            bg=self._default_bg,
+            fg=self._default_fg,
+            font=("Arial", int(self._base_size * scale), "bold"),
+        )
+
+
 class RoleFrame(tk.Frame):
     def __init__(
         self,
@@ -483,66 +553,38 @@ class RoleFrame(tk.Frame):
         self.user_label = tk.Label(header_row, text="", bg=inner.cget('bg'))
         self.user_label.pack(side='left', padx=12, pady=6)
         logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Menu.TButton')
-        try:
-            # Slightly smaller font than menu buttons if available
-            import tkinter.font as tkfont
-            base = 14
-            scale = getattr(self.controller, 'ui_scale', 1.5)
-            sz = max(10, int(round(base * float(scale))))
-            logout_font = tkfont.Font(name=f"LogoutFont_{id(self)}", family='Arial', size=sz, weight='bold')
-            logout_btn.configure(font=logout_font)
-        except Exception:
-            pass
+        # Use default ttk font for logout; MenuButtonFont is only for menu tiles
         logout_btn.pack(side='right', padx=12, pady=6)
 
         if description:
             tk.Label(self, text=description, wraplength=360, justify="center").pack(pady=20)
 
         if actions:
-            # Responsive grid of square menu buttons (2/3/4 columns based on width)
+            # Responsive grid of square menu tiles (2/3/4 columns based on width)
             self.grid_frame = tk.Frame(self)
             self.grid_frame.pack(padx=16, pady=10, fill='both', expand=True)
 
             self._buttons: List[tk.Widget] = []
-            # Scaled menu font tied to UI scale
-            try:
-                import tkinter.font as tkfont
-                base_size = 36
-                scale = getattr(controller, 'ui_scale', 1.5)
-                size = max(14, int(round(base_size * float(scale) )))
-               
-                self._menu_font = tkfont.Font(name=f"RoleMenuFont_{id(self)}", family='Arial', size=size , weight='bold')
-            except Exception:
-                self._menu_font = None
+            ui_scale = getattr(controller, "ui_scale", 1.0)
             for action in actions:
                 handler = None
                 if action_handlers:
                     handler = action_handlers.get(action)
                 if handler is None:
                     handler = lambda name=action: controller.show_placeholder(name)
-                # Use ttk with a custom style that enforces bg (#1e2023) in light theme
-                # Button text with emoji icon on top + label below
                 try:
                     icon, short = _icon_for_action(str(action))  # type: ignore[attr-defined]
-                    btn_text = f"{icon}\n\n{short}"
                 except Exception:
-                    btn_text = str(action)
-                btn = ttk.Button(
+                    icon, short = "", str(action)
+                # Create MenuTile instead of tk.Button, pass scale
+                tile = MenuTile(
                     self.grid_frame,
-                    text=btn_text,
+                    icon=icon,
+                    text=short,
                     command=handler,
-                    style='Menu.TButton',
+                    scale=ui_scale
                 )
-                try:
-                    if getattr(self, '_menu_font', None) is not None:
-                        btn.configure(font=self._menu_font)
-                except Exception:
-                    pass
-                try:
-                    btn.configure(width=22, padding=(30, 28), justify='center', anchor='center')
-                except Exception:
-                    pass
-                self._buttons.append(btn)
+                self._buttons.append(tile)
 
             self._current_cols = 0
 
@@ -563,10 +605,10 @@ class RoleFrame(tk.Frame):
                         self.grid_frame.grid_columnconfigure(i, weight=0)
                     except Exception:
                         pass
-                # Place buttons
-                for idx, btn in enumerate(self._buttons):
+                # Place tiles
+                for idx, tile in enumerate(self._buttons):
                     r, c = divmod(idx, cols)
-                    btn.grid(row=r, column=c, padx=10, pady=10, sticky='nsew')
+                    tile.grid(row=r, column=c, padx=10, pady=10, sticky='nsew')
                 for c in range(cols):
                     self.grid_frame.grid_columnconfigure(c, weight=1)
 
@@ -590,25 +632,12 @@ class RoleFrame(tk.Frame):
         # Removed bottom-placed logout; now shown next to username
 
     def on_theme_changed(self) -> None:
-        # Re-apply fonts when UI scale or theme changes
-        try:
-            import tkinter.font as tkfont
-            base_size = 36
-            scale = getattr(self.controller, 'ui_scale', 1.5)
-            size = max(14, int(round(base_size * float(scale))))
-            if hasattr(self, '_menu_font') and isinstance(self._menu_font, tkfont.Font):
-                self._menu_font.configure(size=size)
-            for btn in getattr(self, '_buttons', []):
-                try:
-                    if hasattr(self, '_menu_font') and self._menu_font:
-                        btn.configure(font=self._menu_font)
-                    # Ensure ttk style remains and layout stays centered
-                    if isinstance(btn, ttk.Button):
-                        btn.configure(style='Menu.TButton', padding=(30, 28), justify='center', anchor='center', width=22)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        # Refresh style for MenuTile buttons if present
+        ui_scale = getattr(self.controller, "ui_scale", 1.0)
+        if hasattr(self, "_buttons"):
+            for btn in self._buttons:
+                if hasattr(btn, "refresh_style"):
+                    btn.refresh_style(scale=ui_scale)
 
     def on_show(self, username: str, role: str) -> None:
         self.user_label.config(text="Signed in as {} ({})".format(username, role))

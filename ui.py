@@ -64,33 +64,42 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
     - Pads buttons/entries
     - Enlarges Treeview rows and headings
     """
+    # Only scale fonts (do NOT use tk scaling so widget geometry stays same)
     try:
-        # Global scaling (makes all points render larger)
-        try:
-            # Double-size UI by default
-            root.tk.call('tk', 'scaling', float(scale) if scale else 1.2)
-        except Exception:
-            pass
-
         import tkinter.font as tkfont
-        # Bump core fonts noticeably
-        for fname, size, weight in (
-            ('TkDefaultFont', 13, 'normal'),
-            ('TkTextFont', 13, 'normal'),
-            ('TkMenuFont', 13, 'normal'),
-            ('TkHeadingFont', 18, 'bold'),
-            ('TkTooltipFont', 12, 'normal'),
-        ):
+        try:
+            s = float(scale) if scale else 1.0
+            if s <= 0:
+                s = 1.0
+        except Exception:
+            s = 1.0
+        # Base sizes (unscaled). Keep modest defaults so 1.0 looks normal.
+        base = {
+            'TkDefaultFont': 14,
+            'TkTextFont': 14,
+            'TkMenuFont': 16,
+            'TkHeadingFont': 16,
+            'TkTooltipFont': 14,
+            'MenuButtonFont': 96,
+        }
+        for fname, bsize in base.items():
             try:
-                f = tkfont.nametofont(fname)
-                f.configure(size=size, weight=weight)
+                new_size = max(8, int(round(bsize * s)))
+                if fname == 'MenuButtonFont':
+                    # Use pixel sizing for reliability across platforms
+                    try:
+                        tkfont.nametofont('MenuButtonFont').configure(size=-new_size, weight='bold')
+                    except Exception:
+                        tkfont.Font(name='MenuButtonFont', size=-new_size, weight='bold')
+                else:
+                    f = tkfont.nametofont(fname)
+                    # Preserve weight/family, update size
+                    f.configure(size=new_size)
             except Exception:
                 pass
-
         # Apply defaults to classic Tk widgets too
         try:
             app_font = tkfont.nametofont('TkDefaultFont')
-            heading_font = tkfont.nametofont('TkHeadingFont')
             root.option_add('*Font', app_font)
             root.option_add('*Button.Font', app_font)
             root.option_add('*Label.Font', app_font)
@@ -142,6 +151,11 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
             style.configure('Treeview.Heading', padding=(8, 8), font=tv_head)
         except Exception:
             style.configure('Treeview.Heading', padding=(8, 8))
+        # After applying palette, recolor existing classic Tk widgets so changes are visible immediately
+        try:
+            _recolor_existing_classic_widgets(root, theme_name)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -193,7 +207,8 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     # Buttons should be light with dark text for visibility and FLAT
     light_btn_bg = '#f0f0f0'
     light_btn_bg_active = '#e6e6e6'
-    style.configure('TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0)
+    style.configure('TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
+                    padding=(20, 16))
     style.map('TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
     style.configure('TNotebook', background=bg)
     style.configure('TNotebook.Tab', background=accent, foreground=fg)
@@ -210,6 +225,22 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     # Make combobox/button visuals readable on dark theme
     style.configure('TCombobox', fieldbackground=light_btn_bg, background=light_btn_bg, foreground='#000000')
     style.map('TCombobox', fieldbackground=[('readonly', light_btn_bg)], foreground=[('readonly', '#000000')])
+    # Menu buttons style (will get padding updated per-scale at runtime)
+    try:
+        style.layout('Menu.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+        style.configure('Menu.TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
+                        padding=(20, 16), anchor='center', justify='center', font='MenuButtonFont')
+        style.map('Menu.TButton', background=[('pressed', light_btn_bg_active), ('active', light_btn_bg_active)])
+    except Exception:
+        pass
 
 
 def _apply_light_palette(style, root: tk.Tk) -> None:
@@ -255,8 +286,43 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
     style.configure('TFrame', background=bg)
     style.configure('TLabel', background=bg, foreground=fg)
     # ttk Button styling (override to requested color)
-    style.configure('TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0)
-    style.map('TButton', background=[('active', btn_bg_active)], foreground=[('active', btn_fg)], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
+    # Force background color for ttk.Button across states. Many themes ignore 'background'
+    # unless we also set layout/element options. Use a custom style that draws a flat background.
+    try:
+        # Create a solid background layout to ensure our color is visible
+        style.layout('Solid.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+        style.configure('Solid.TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0,
+                        padding=(20, 16))  # increase inner horizontal/vertical padding
+        style.map('Solid.TButton',
+                   background=[('pressed', btn_bg_active), ('active', btn_bg_active), ('focus', btn_bg)],
+                   foreground=[('disabled', '#bbbbbb'), ('!disabled', btn_fg)])
+        # Also try to set Button element colors used by many themes
+        style.configure('TButton', background=btn_bg, foreground=btn_fg, padding=(20, 16))
+        style.map('TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)])
+        # Menu buttons style (will get padding updated per-scale at runtime)
+        style.layout('Menu.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+        style.configure('Menu.TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0,
+                        padding=(20, 16), anchor='center', justify='center', font='MenuButtonFont')
+        style.map('Menu.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)])
+    except Exception:
+        style.configure('TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0)
+        style.map('TButton', background=[('active', btn_bg_active)], foreground=[('active', btn_fg)], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
     style.configure('TNotebook', background=bg)
     style.configure('TNotebook.Tab', background=accent, foreground=fg)
     style.map('TNotebook.Tab', background=[('selected', bg)])
@@ -271,6 +337,89 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
         pass
     style.configure('TCombobox', fieldbackground='#ffffff', background='#ffffff', foreground=fg)
     style.map('TCombobox', fieldbackground=[('readonly', '#ffffff')], foreground=[('readonly', fg)])
+
+
+def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) -> None:
+    """Best-effort recolor of existing classic Tk widgets (Frame, Button, etc.).
+    ttk widgets update via Style; classic widgets need manual bg/fg updates.
+    """
+    try:
+        # Determine palette from theme_name or by measuring bg luminance
+        bg = root.cget('bg') if hasattr(root, 'cget') else '#ffffff'
+        # Default to light fg; override for dark theme
+        fg = '#222222'
+        btn_bg = '#1e2023'
+        btn_bg_active = '#2a2f33'
+        btn_fg = '#ffffff'
+        entry_bg = '#ffffff'
+        list_bg = '#ffffff'
+        if theme_name and str(theme_name).lower() in ('dark', 'koyu'):
+            bg = '#1e1e1e'
+            fg = '#eaeaea'
+            btn_bg = '#f0f0f0'
+            btn_bg_active = '#e6e6e6'
+            btn_fg = '#000000'
+            entry_bg = '#2d2d2d'
+            list_bg = '#2d2d2d'
+        else:
+            # If not specified, infer by luminance
+            try:
+                r16, g16, b16 = root.winfo_rgb(bg)
+                lum = 0.2126 * (r16/65535.0) + 0.7152 * (g16/65535.0) + 0.0722 * (b16/65535.0)
+                if lum < 0.5:
+                    # dark inferred
+                    fg = '#eaeaea'
+                    btn_bg = '#f0f0f0'
+                    btn_bg_active = '#e6e6e6'
+                    btn_fg = '#000000'
+                    entry_bg = '#2d2d2d'
+                    list_bg = '#2d2d2d'
+            except Exception:
+                pass
+
+        def _walk(w: tk.Misc) -> None:
+            try:
+                children = w.winfo_children()
+            except Exception:
+                children = []
+            for c in children:
+                try:
+                    cls = str(c.winfo_class())
+                except Exception:
+                    cls = ''
+                # Skip ttk widgets (their classes typically start with 'T')
+                is_ttk = cls.startswith('T')
+                if not is_ttk:
+                    try:
+                        # Frames and Canvas adopt container bg
+                        if isinstance(c, tk.Frame) or isinstance(c, tk.Toplevel) or isinstance(c, tk.Canvas):
+                            c.configure(bg=bg)
+                        # Classic Buttons get explicit palette
+                        elif isinstance(c, tk.Button):
+                            c.configure(bg=btn_bg, fg=btn_fg, activebackground=btn_bg_active, activeforeground=btn_fg, highlightthickness=0, bd=0, relief='flat')
+                        # Entry-like
+                        elif isinstance(c, tk.Entry) or isinstance(c, tk.Spinbox):
+                            c.configure(bg=entry_bg, fg=fg, insertbackground=fg)
+                        # Listbox
+                        elif isinstance(c, tk.Listbox):
+                            c.configure(bg=list_bg, fg=fg)
+                        # Check/Radiobuttons should blend with bg and use fg
+                        elif isinstance(c, tk.Checkbutton) or isinstance(c, tk.Radiobutton):
+                            c.configure(bg=bg, fg=fg, activebackground=bg, activeforeground=fg, selectcolor=bg)
+                        # Labels: leave bg as-is if manually tinted; only set fg for readability
+                        elif isinstance(c, tk.Label):
+                            try:
+                                c.configure(fg=fg)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                # Recurse
+                _walk(c)
+
+        _walk(root)
+    except Exception:
+        pass
 
 
 def _icon_for_action(label: str) -> tuple[str, str]:
@@ -303,18 +452,51 @@ def create_menu_button(parent: tk.Misc, text: str, command) -> tk.Button:
     Icons are emoji placed over a short label. No wrapping.
     """
     icon, short = _icon_for_action(text)
-    btn_text = f"{icon}\n{short}"
+    # Add an extra blank line between icon and label to increase visual height
+    btn_text = f"{icon}\n\n{short}"
+    # Prefer ttk for consistent theming; fall back to tk.Button
+    # Force classic tk.Button to bypass ttk theme overrides
+    base_family = None
+    try:
+        import tkinter.font as tkfont
+        try:
+            base_family = tkfont.nametofont('TkDefaultFont').actual('family')
+        except Exception:
+            base_family = None
+        # Large, guaranteed-visible font with pixel size (negative = pixels in Tk)
+        try:
+            tkfont.nametofont('MenuButtonFont').configure(size=-42, weight='bold')
+        except Exception:
+            if base_family:
+                tkfont.Font(name='MenuButtonFont', family=base_family, size=-42, weight='bold')
+            else:
+                tkfont.Font(name='MenuButtonFont', size=-42, weight='bold')
+        menu_font_name = 'MenuButtonFont'
+    except Exception:
+        menu_font_name = None
+
     btn = tk.Button(
         parent,
         text=btn_text,
-        width=14,   # chars
-        height=5,   # text lines to fit icon+label comfortably
+        width=18,   # more width to match tall look
+        height=5,
         justify='center',
         relief='flat',
         bd=0,
         highlightthickness=0,
         command=command,
+        font=menu_font_name if menu_font_name else (tkfont.Font(family=base_family, size=-42, weight='bold') if base_family else None)
     )
+    # Fixed colors for light theme preference; dark theme still readable
+    try:
+        btn.configure(bg='#1e2023', fg='#ffffff', activebackground='#2a2f33', activeforeground='#ffffff')
+    except Exception:
+        pass
+    # Add internal padding to visually increase height
+    try:
+        btn.configure(ipady=16, padx=16, pady=10)
+    except Exception:
+        pass
     return btn
 
 

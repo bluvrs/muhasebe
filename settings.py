@@ -42,6 +42,8 @@ class SettingsFrame(tk.Frame):
         name_holder = tk.Frame(self)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
         name_card, name_inner = rounded_outline(name_holder, radius=12, padding=12, border='#888')
+        self.name_card = name_card
+        self.name_inner = name_inner
         name_card.pack(anchor='center', fill='x')
         tint_name = smart_tinted_bg(self)
         name_inner.configure(bg=tint_name)
@@ -60,6 +62,8 @@ class SettingsFrame(tk.Frame):
         theme_holder = tk.Frame(self)
         theme_holder.pack(fill='x', padx=20, pady=(4, 8))
         theme_card, theme_inner = rounded_outline(theme_holder, radius=12, padding=12, border='#888')
+        self.theme_card = theme_card
+        self.theme_inner = theme_inner
         theme_card.pack(anchor='center', fill='x')
         tint_theme = smart_tinted_bg(self)
         theme_inner.configure(bg=tint_theme)
@@ -73,6 +77,8 @@ class SettingsFrame(tk.Frame):
         scale_holder = tk.Frame(self)
         scale_holder.pack(fill='x', padx=20, pady=(4, 8))
         scale_card, scale_inner = rounded_outline(scale_holder, radius=12, padding=12, border='#888')
+        self.scale_card = scale_card
+        self.scale_inner = scale_inner
         scale_card.pack(anchor='center', fill='x')
         tint_scale = smart_tinted_bg(self)
         scale_inner.configure(bg=tint_scale)
@@ -90,6 +96,8 @@ class SettingsFrame(tk.Frame):
         db_holder = tk.Frame(self)
         db_holder.pack(fill='x', padx=20, pady=(12,0))
         db_card, db_inner = rounded_outline(db_holder, radius=12, padding=12, border='#888')
+        self.db_card = db_card
+        self.db_inner = db_inner
         db_card.pack(anchor='center', fill='x')
         tint = smart_tinted_bg(self)
         db_inner.configure(bg=tint)
@@ -113,6 +121,40 @@ class SettingsFrame(tk.Frame):
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Ayarlar")
         self._load()
+
+    def on_theme_changed(self) -> None:
+        """Refresh tinted card backgrounds and local container bg when theme changes."""
+        try:
+            # Match this frame's bg to app bg
+            app_bg = self.controller.cget('bg') if hasattr(self.controller, 'cget') else None
+            if app_bg:
+                self.configure(bg=app_bg)
+        except Exception:
+            pass
+        try:
+            # Recompute tints for each card
+            for inner in [getattr(self, 'name_inner', None), getattr(self, 'theme_inner', None), getattr(self, 'scale_inner', None), getattr(self, 'db_inner', None)]:
+                if inner is None:
+                    continue
+                tint = smart_tinted_bg(self)
+                try:
+                    inner.configure(bg=tint)
+                except Exception:
+                    pass
+                # Update direct children that are classic Tk widgets to use the same bg
+                try:
+                    for ch in inner.winfo_children():
+                        try:
+                            # Only touch classic widgets; ttk widgets ignore bg
+                            cls = str(ch.winfo_class())
+                            if not cls.startswith('T'):
+                                ch.configure(bg=tint)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def go_back(self) -> None:
         user = getattr(self.controller, "active_user", None)
@@ -188,29 +230,36 @@ class SettingsFrame(tk.Frame):
             conn.close()
         except Exception:
             pass
-        # Apply immediately
+        # Ask user to restart for full theme application
         try:
-            try:
-                scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else 2.0
-            except Exception:
-                scale_val = 2.0
-            apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
-            if hasattr(self.controller, 'refresh_theme'):
-                self.controller.refresh_theme()
-        except Exception:
-            pass
-        # Runtime apply; no restart needed
-        try:
-            self.controller.saved_theme = theme_key
-            try:
-                self.controller.saved_scale = float(scale_val)
-                self.controller.ui_scale = float(scale_val)
-            except Exception:
-                pass
-        except Exception:
-            pass
-        try:
-            self.status_var.set("Tema uygulandı.")
+            if messagebox.askyesno("Tema", "Tema değiştirildi. Uygulamayı yeniden başlatmak ister misiniz?"):
+                # Persist desired scale in memory to survive restart
+                try:
+                    scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
+                except Exception:
+                    scale_val = getattr(self.controller, 'saved_scale', 1.5)
+                try:
+                    self.controller.saved_theme = theme_key
+                    self.controller.saved_scale = float(scale_val)
+                except Exception:
+                    pass
+                self.restart_app()
+            else:
+                # Best-effort live apply without restart
+                try:
+                    scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
+                except Exception:
+                    scale_val = getattr(self.controller, 'saved_scale', 1.5)
+                apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
+                if hasattr(self.controller, 'refresh_theme'):
+                    self.controller.refresh_theme()
+                try:
+                    self.controller.saved_theme = theme_key
+                    self.controller.saved_scale = float(scale_val)
+                    self.controller.ui_scale = float(scale_val)
+                except Exception:
+                    pass
+                self.status_var.set("Tema uygulandı (yeniden başlatmadan).")
         except Exception:
             pass
     def _init_theme_list(self) -> None:
@@ -222,6 +271,11 @@ class SettingsFrame(tk.Frame):
             scale_val = float(self.var_scale.get())
         except Exception:
             scale_val = 2.0
+        try:
+            if scale_val <= 0:
+                scale_val = 1.5
+        except Exception:
+            scale_val = 1.5
         # Save
         try:
             conn = sqlite3.connect(DB_NAME)
@@ -235,20 +289,21 @@ class SettingsFrame(tk.Frame):
             conn.close()
         except Exception:
             pass
-        # Apply immediately with current theme and update min window size
+        # Apply only font scaling with current theme (no tk scaling)
         try:
             theme_key = 'dark' if self.var_dark.get() else 'light'
             apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
+            # Keep window size policy independent from font scale
             if hasattr(self.controller, 'set_min_window_for_scale'):
-                self.controller.set_min_window_for_scale(scale_val)
+                self.controller.set_min_window_for_scale(1.0)
         except Exception:
             pass
         try:
             self.controller.saved_scale = float(scale_val)
             self.controller.ui_scale = float(scale_val)
-            self.status_var.set(f"YazÄ± boyutu uygulandı: {scale_val}x")
+            self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
         except Exception:
             pass
 
@@ -326,6 +381,3 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         os._exit(0)
-
-
-
