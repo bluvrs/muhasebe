@@ -113,6 +113,25 @@ function New-Exe {
         $commonArgs += @('--add-data','Roboto;Roboto')
     }
 
+    # Ensure all local scripts (modules) are included (hidden imports)
+    try {
+        $pyFiles = Get-ChildItem -File -Filter '*.py' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+        foreach ($f in $pyFiles) {
+            $mod = [System.IO.Path]::GetFileNameWithoutExtension($f)
+            if ($mod -and ($mod -ne 'main')) {
+                $commonArgs += @('--hidden-import', $mod)
+            }
+        }
+        # Only add optional third-party hidden imports if installed in venv
+        $optMods = @('tkcalendar')
+        foreach ($m in $optMods) {
+            try {
+                & .\.venv\Scripts\python -c "import importlib,sys; sys.exit(0) if importlib.util.find_spec('$m') else sys.exit(1)" > $null 2>&1
+                if ($LASTEXITCODE -eq 0) { $commonArgs += @('--hidden-import', $m) }
+            } catch {}
+        }
+    } catch {}
+
     if ($OneDir) {
         Write-Host "[+] Building onedir app (folder)" -ForegroundColor Cyan
         .\.venv\Scripts\python -m PyInstaller @commonArgs 'main.py'
@@ -135,7 +154,5 @@ try {
     Write-Host "[x] Build failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
-
-
 
 

@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from ui import make_back_arrow, apply_theme, rounded_outline, smart_tinted_bg
@@ -37,7 +37,7 @@ class SettingsFrame(tk.Frame):
                     pass
                 card.configure(width=req_w, height=height)
             except Exception:
-                # Ölçüm başarısız olursa güvenli bir yükseklik kullan
+                # Ã–lÃ§Ã¼m baÅŸarÄ±sÄ±z olursa gÃ¼venli bir yÃ¼kseklik kullan
                 card.configure(width=min_w, height=200)
         name_holder = tk.Frame(self)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
@@ -45,14 +45,14 @@ class SettingsFrame(tk.Frame):
         name_card.pack(anchor='center', fill='x')
         tint_name = smart_tinted_bg(self)
         name_inner.configure(bg=tint_name)
-        tk.Label(name_inner, text="Okul Adı (Rapor Başlığı)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
+        tk.Label(name_inner, text="Okul adı (Rapor BaÅŸlÄ±ÄŸÄ±)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
         self.entry_school = ttk.Entry(row_name, width=40)
-        # Metin kutusu ile buton arasını açmak için boşlukları artır
+        # Metin kutusu ile buton arasÄ±nÄ± aÃ§mak iÃ§in boÅŸluklarÄ± artÄ±r
         self.entry_school.pack(side='left', padx=(0, 12))
         tk.Button(row_name, text="Kaydet", command=self.save).pack(side='right', padx=(12, 0))
-        # Kart yüksekliğini içeriğe göre ayarla (Kaydet butonu görünür kalsın)
+        # Kart yÃ¼ksekliÄŸini iÃ§eriÄŸe gÃ¶re ayarla (Kaydet butonu gÃ¶rÃ¼nÃ¼r kalsÄ±n)
         _autosize_card(name_card, name_inner, min_w=560, pad=12, min_h=180)
         name_card.pack_propagate(False)
 
@@ -76,7 +76,7 @@ class SettingsFrame(tk.Frame):
         scale_card.pack(anchor='center', fill='x')
         tint_scale = smart_tinted_bg(self)
         scale_inner.configure(bg=tint_scale)
-        tk.Label(scale_inner, text="Yazı Boyutu", font=("Arial", 12, "bold"), bg=tint_scale).pack(anchor='center')
+        tk.Label(scale_inner, text="YazÄ± Boyutu", font=("Arial", 12, "bold"), bg=tint_scale).pack(anchor='center')
         self.var_scale = tk.StringVar(value='2.0')
         radios = tk.Frame(scale_inner, bg=tint_scale)
         radios.pack(pady=(6, 0))
@@ -100,7 +100,7 @@ class SettingsFrame(tk.Frame):
         ttk.Button(btn_row, text="Yedekle", command=self.backup_db).pack(side='left', padx=6)
         ttk.Button(btn_row, text="Sıfırla", command=self.reset_db).pack(side='left', padx=6)
         # Restart button (hidden until reset)
-        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden Başlat", command=self.restart_app)
+        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden BaÅŸlat", command=self.restart_app)
 
         _autosize_card(db_card, db_inner, min_w=560, pad=12, min_h=180)
         db_card.pack_propagate(False)
@@ -210,9 +210,10 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         try:
-            self.status_var.set("Tema uyguland�.")
+            self.status_var.set("Tema uygulandı.")
         except Exception:
-            pass    def _init_theme_list(self) -> None:
+            pass
+    def _init_theme_list(self) -> None:
         pass
 
     def on_scale_change(self) -> None:
@@ -247,7 +248,7 @@ class SettingsFrame(tk.Frame):
         try:
             self.controller.saved_scale = float(scale_val)
             self.controller.ui_scale = float(scale_val)
-            self.status_var.set(f"Yaz� boyutu uyguland�: {scale_val}x")
+            self.status_var.set(f"YazÄ± boyutu uygulandı: {scale_val}x")
         except Exception:
             pass
 
@@ -255,7 +256,7 @@ class SettingsFrame(tk.Frame):
     def backup_db(self) -> None:
         try:
             if not os.path.exists(DB_NAME):
-                messagebox.showwarning("Yedekleme", "Veritabanı bulunamadı.")
+                messagebox.showwarning("Yedekleme", "VeriTabanı bulunamadı.")
                 return
             # ensure backups folder
             bdir = os.path.join(os.getcwd(), 'backups')
@@ -264,12 +265,12 @@ class SettingsFrame(tk.Frame):
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
             dst = os.path.join(bdir, f"{base}_{ts}{ext or ''}")
             shutil.copy2(DB_NAME, dst)
-            messagebox.showinfo("Yedekleme", f"Yedek alındı:\n{dst}")
+            messagebox.showinfo("Yedekleme", f"Yedek alÄ±ndÄ±:\n{dst}")
         except Exception as e:
-            messagebox.showerror("Yedekleme Hatası", str(e))
+            messagebox.showerror("Yedekleme HatasÄ±", str(e))
 
     def reset_db(self) -> None:
-        if not messagebox.askyesno("Sıfırlama", "Veritabanını sıfırlamak istediğinize emin misiniz?\nMevcut dosya yedek kopyası alınacaktır."):
+        if not messagebox.askyesno("Sıfırlama", "VeriTabanınÄ± Sıfırlamak istediÄŸinize emin misiniz?\nMevcut dosya yedek kopyasÄ± alÄ±nacaktÄ±r."):
             return
         try:
             # Backup first
@@ -288,7 +289,7 @@ class SettingsFrame(tk.Frame):
                     main.init_db()
             except Exception:
                 pass
-            messagebox.showinfo("Sıfırlama", "Veritabanı sıfırlandı.")
+            messagebox.showinfo("Sıfırlama", "VeriTabanı SıfırlandÄ±.")
             try:
                 # Show restart button after reset (centered row)
                 if hasattr(self, 'btn_restart') and str(self.btn_restart) not in (None, ''):
@@ -296,10 +297,10 @@ class SettingsFrame(tk.Frame):
             except Exception:
                 pass
         except Exception as e:
-            messagebox.showerror("Sıfırlama Hatası", str(e))
+            messagebox.showerror("Sıfırlama HatasÄ±", str(e))
 
     def restart_app(self) -> None:
-        if not messagebox.askyesno("Yeniden Ba�lat", "Uygulama yeniden ba�lat�ls�n m�?"):
+        if not messagebox.askyesno("Yeniden BaÅŸlat", "Uygulama yeniden baÅŸlatÄ±lsÄ±n mÄ±?"):
             return
         import subprocess, time
         try:
@@ -315,15 +316,16 @@ class SettingsFrame(tk.Frame):
                     try:
                         os.startfile(sys.argv[0])
                     except Exception as _e:
-                        messagebox.showerror("Yeniden Ba�latma Hatas�", str(_e))
+                        messagebox.showerror("Yeniden BaÅŸlatma HatasÄ±", str(_e))
                         return
         except Exception as e:
-            messagebox.showerror("Yeniden Ba�latma Hatas�", str(e))
+            messagebox.showerror("Yeniden BaÅŸlatma HatasÄ±", str(e))
             return
         try:
             self.controller.destroy()
         except Exception:
             pass
         os._exit(0)
+
 
 
