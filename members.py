@@ -51,16 +51,64 @@ class MembersFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        tk.Button(btns, text="Ekle", command=self.add_user, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_user, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_user, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(btns, text="Sifreyi Sifirla", command=self.reset_password, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
+        self.btn_add = ttk.Button(btns, text="Ekle", command=self.add_user)
+        self.btn_add.pack(side="left")
+        self.btn_update = ttk.Button(btns, text="Guncelle", command=self.update_user)
+        self.btn_update.pack(side="left", padx=8)
+        self.btn_delete = ttk.Button(btns, text="Sil", command=self.delete_user)
+        self.btn_delete.pack(side="left")
+        self.btn_reset_pwd = ttk.Button(btns, text="Sifreyi Sifirla", command=self.reset_password)
+        self.btn_reset_pwd.pack(side="left", padx=8)
 
         self.refresh_users()
+
+    def refresh_style(self) -> None:
+        theme = getattr(self.controller, "saved_theme", "light")
+        style = ttk.Style()
+        if theme == "dark":
+            style.configure("Custom.TButton", background="white", foreground="black")
+            style.map("Custom.TButton",
+                      background=[('active', 'white')],
+                      foreground=[('active', 'black')])
+            style.configure("Treeview",
+                            background="#2a2f33",
+                            foreground="white",
+                            fieldbackground="#2a2f33")
+            style.map("Treeview",
+                      background=[('selected', '#1e2023')],
+                      foreground=[('selected', 'white')])
+            style.configure("TNotebook.Tab",
+                            background="#2a2f33",
+                            foreground="white")
+            style.map("TNotebook.Tab",
+                      background=[('selected', '#1e2023')],
+                      foreground=[('selected', 'white')])
+        else:
+            style.configure("Custom.TButton", background="#1e2023", foreground="white")
+            style.map("Custom.TButton",
+                      background=[('active', '#2a2f33')],
+                      foreground=[('active', 'white')])
+            style.configure("Treeview",
+                            background="white",
+                            foreground="black",
+                            fieldbackground="white")
+            style.map("Treeview",
+                      background=[('selected', '#1e2023')],
+                      foreground=[('selected', 'white')])
+            style.configure("TNotebook.Tab",
+                            background="white",
+                            foreground="black")
+            style.map("TNotebook.Tab",
+                      background=[('selected', '#1e2023')],
+                      foreground=[('selected', 'white')])
+
+        for btn in [self.btn_add, self.btn_update, self.btn_delete, self.btn_reset_pwd]:
+            btn.configure(style="Custom.TButton")
 
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Uye Yonetimi")
         self.refresh_users()
+        self.refresh_style()
 
     def refresh_users(self) -> None:
         for row in self.tree.get_children():

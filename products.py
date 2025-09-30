@@ -24,8 +24,10 @@ class ProductsFrame(tk.Frame):
         tk.Label(search_bar, text="Ara (isim/barkod):").pack(side="left")
         self.entry_search = tk.Entry(search_bar)
         self.entry_search.pack(side="left", fill="x", expand=True, padx=(8, 8))
-        tk.Button(search_bar, text="Ara", command=self.search, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(search_bar, text="Temizle", command=self.clear_search, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
+        self.btn_search = ttk.Button(search_bar, text="Ara", command=self.search)
+        self.btn_search.pack(side="left")
+        self.btn_clear = ttk.Button(search_bar, text="Temizle", command=self.clear_search)
+        self.btn_clear.pack(side="left", padx=(8, 0))
 
         # Products list
         columns = ("id", "name", "barcode", "price", "cost", "stock", "unit")
@@ -86,9 +88,12 @@ class ProductsFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        tk.Button(btns, text="Ekle", command=self.add_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        self.btn_add = ttk.Button(btns, text="Ekle", command=self.add_product)
+        self.btn_add.pack(side="left")
+        self.btn_update = ttk.Button(btns, text="Guncelle", command=self.update_product)
+        self.btn_update.pack(side="left", padx=8)
+        self.btn_delete = ttk.Button(btns, text="Sil", command=self.delete_product)
+        self.btn_delete.pack(side="left")
 
         self.refresh()
 
@@ -107,6 +112,28 @@ class ProductsFrame(tk.Frame):
         except Exception:
             pass
         self.refresh()
+        self.refresh_style()
+
+    def refresh_style(self):
+        theme = getattr(self.controller, "saved_theme", "light")
+        style = ttk.Style()
+        if theme == "dark":
+            style.configure("Custom.TButton", background="white", foreground="black")
+            style.configure("Treeview", background="#1e2023", fieldbackground="#1e2023", foreground="white")
+            style.configure("TNotebook.Tab", background="#1e2023", foreground="white")
+        else:
+            style.configure("Custom.TButton", background="#1e2023", foreground="white")
+            style.configure("Treeview", background="white", fieldbackground="white", foreground="black")
+            style.configure("TNotebook.Tab", background="white", foreground="black")
+        for btn in (
+            getattr(self, "btn_search", None),
+            getattr(self, "btn_clear", None),
+            getattr(self, "btn_add", None),
+            getattr(self, "btn_update", None),
+            getattr(self, "btn_delete", None),
+        ):
+            if btn:
+                btn.configure(style="Custom.TButton")
 
     # --- Helpers ---
     def _parse_float(self, value: str, default: float = 0.0) -> float:

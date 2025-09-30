@@ -29,7 +29,8 @@ class InvestorsFrame(tk.Frame):
         tk.Label(pool, text="Yatırım Havuzu % (Ortaklığa açık pay)").pack(side="left")
         self.entry_pool = tk.Entry(pool, width=6)
         self.entry_pool.pack(side="left", padx=(6, 6))
-        tk.Button(pool, text="Kaydet", command=self.save_pool_percent, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        self.btn_save_pool = ttk.Button(pool, text="Kaydet", command=self.save_pool_percent)
+        self.btn_save_pool.pack(side="left")
         # Live computed label
         self.lbl_pool_info = tk.Label(pool, text="")
         self.lbl_pool_info.pack(side="left", padx=(12, 0))
@@ -104,9 +105,12 @@ class InvestorsFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(tab_list)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        tk.Button(btns, text="Ekle", command=self.add_investor, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_investor, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_investor, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        self.btn_add = ttk.Button(btns, text="Ekle", command=self.add_investor)
+        self.btn_add.pack(side="left")
+        self.btn_update = ttk.Button(btns, text="Guncelle", command=self.update_investor)
+        self.btn_update.pack(side="left", padx=8)
+        self.btn_delete = ttk.Button(btns, text="Sil", command=self.delete_investor)
+        self.btn_delete.pack(side="left")
 
         # Transactions section
         sep = ttk.Separator(tab_tx, orient="horizontal")
@@ -135,9 +139,12 @@ class InvestorsFrame(tk.Frame):
 
         tx_btns = tk.Frame(tab_tx)
         tx_btns.pack(fill="x", padx=20, pady=(6, 6))
-        tk.Button(tx_btns, text="Katki Ekle", command=lambda: self.add_tx('contribution'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(tx_btns, text="Cekim Ekle", command=lambda: self.add_tx('withdrawal'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
-        tk.Button(tx_btns, text="Islemi Sil", command=self.delete_tx, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
+        self.btn_add_tx_contribution = ttk.Button(tx_btns, text="Katki Ekle", command=lambda: self.add_tx('contribution'))
+        self.btn_add_tx_contribution.pack(side="left")
+        self.btn_add_tx_withdrawal = ttk.Button(tx_btns, text="Cekim Ekle", command=lambda: self.add_tx('withdrawal'))
+        self.btn_add_tx_withdrawal.pack(side="left", padx=(8, 0))
+        self.btn_delete_tx = ttk.Button(tx_btns, text="Islemi Sil", command=self.delete_tx)
+        self.btn_delete_tx.pack(side="left", padx=(8, 0))
 
         tx_cols = ("id", "date", "type", "amount", "notes")
         # Give more room to transactions
@@ -172,6 +179,36 @@ class InvestorsFrame(tk.Frame):
         except Exception:
             pass
         self.refresh()
+        self.refresh_style()
+
+    def refresh_style(self):
+        theme = getattr(self.controller, "saved_theme", "light")
+        style = ttk.Style()
+        # Configure custom button style for ttk.Button
+        if theme == "dark":
+            style.configure("Custom.TButton", background="white", foreground="black")
+        else:
+            style.configure("Custom.TButton", background="#1e2023", foreground="white")
+        # Apply the custom style to all relevant buttons
+        for btn in (
+            getattr(self, "btn_save_pool", None),
+            getattr(self, "btn_add", None),
+            getattr(self, "btn_update", None),
+            getattr(self, "btn_delete", None),
+            getattr(self, "btn_add_tx_contribution", None),
+            getattr(self, "btn_add_tx_withdrawal", None),
+            getattr(self, "btn_delete_tx", None),
+        ):
+            if btn:
+                btn.configure(style="Custom.TButton")
+
+        # ttk styles for Treeview and Notebook (unchanged)
+        if theme == "dark":
+            style.configure("Treeview", background="#1e2023", fieldbackground="#1e2023", foreground="white")
+            style.configure("TNotebook.Tab", background="#1e2023", foreground="white")
+        else:
+            style.configure("Treeview", background="white", fieldbackground="white", foreground="black")
+            style.configure("TNotebook.Tab", background="white", foreground="black")
 
     # Helpers
     def _selected_id(self):

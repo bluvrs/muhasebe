@@ -1,5 +1,6 @@
 import sqlite3
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import messagebox
 from tkinter import ttk
 from datetime import datetime, date
@@ -17,6 +18,11 @@ class SalesFrame(tk.Frame):
     def __init__(self, parent: tk.Misc, controller) -> None:
         super().__init__(parent)
         self.controller = controller
+
+        # Font setup for small controls
+        base_font = tkfont.nametofont("TkDefaultFont")
+        small_size = int(base_font.actual("size") * 0.8)
+        small_font = (base_font.actual("family"), small_size)
 
         # Header with back arrow
         header = tk.Frame(self)
@@ -40,8 +46,8 @@ class SalesFrame(tk.Frame):
         self.entry_qty.pack(side="left", padx=(6, 6))
         # On focus out, clamp to minimum 1
         self.entry_qty.bind('<FocusOut>', lambda _e: self._qty_clamp(self.entry_qty))
-        tk.Button(sb, text="Ekle", command=self.add_to_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(sb, text="Sepeti Temizle", command=self.clear_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
+        ttk.Button(sb, text="Ekle", command=self.add_to_cart).pack(side="left")
+        ttk.Button(sb, text="Sepeti Temizle", command=self.clear_cart).pack(side="left", padx=(8, 0))
 
         # Cart
         columns = ("product_id", "name", "barcode", "price", "qty", "total")
@@ -66,20 +72,38 @@ class SalesFrame(tk.Frame):
         # Left group: date + toplam
         left_box = tk.Frame(bottom)
         left_box.pack(side='left')
-        tk.Label(left_box, text="Tarih:").pack(side="left")
+        # Add date_outline frame
+        date_outline = tk.Frame(left_box, bd=1, relief="solid", padx=4, pady=4)
+        date_outline.pack(side="left", padx=(6, 20), pady=8)  # Extra padding here
+        date_frame = tk.Frame(date_outline)
+        date_frame.pack()
+        tk.Label(date_frame, text="Tarih:", font=small_font).pack(anchor="center", pady=2)
         if _DateEntry is not None:
-            self.entry_date = _DateEntry(left_box, date_pattern="yyyy-mm-dd", state="readonly")
+            self.entry_date = _DateEntry(date_frame, date_pattern="yyyy-mm-dd", state="readonly", font=small_font)
             try:
                 self.entry_date.set_date(date.today())
             except Exception:
                 pass
         else:
-            self.entry_date = tk.Entry(left_box, width=20)
-        self.entry_date.pack(side="left", padx=(6, 6))
-        tk.Button(left_box, text="Şimdi", command=self._set_now, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(0, 20))
+            self.entry_date = tk.Entry(date_frame, width=20, font=small_font)
+        self.entry_date.pack(anchor="center", pady=2)
+        ttk.Button(date_frame, text="Şimdi", command=self._set_now, style="TButton").pack(anchor="center", pady=2)
+        # Apply small font to the "Şimdi" button
+        # Find the button widget and set its font (ttk Button, so we need a style)
+        # We'll create a style for small font button
+        style = ttk.Style()
+        style.configure("Small.TButton", font=small_font)
+        # Reconfigure the button to use the style
+        for w in date_frame.winfo_children():
+            if isinstance(w, ttk.Button):
+                w.configure(style="Small.TButton")
+        # Continue with totals to the right of date_frame
         self.total_var = tk.StringVar(value="0.00")
-        tk.Label(left_box, text="Genel Toplam:").pack(side="left")
-        tk.Label(left_box, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
+        # New frame for total labels
+        total_frame = tk.Frame(left_box)
+        total_frame.pack(side="left", anchor="center")
+        tk.Label(total_frame, text="Genel Toplam:").pack(side="left", anchor="center")
+        tk.Label(total_frame, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20), anchor="center")
 
         # Right group: button + payment (outlined)
         right_box = tk.Frame(bottom)
@@ -95,7 +119,7 @@ class SalesFrame(tk.Frame):
         tk.Label(pay_box, text="Paraüstü:", bg=pay_box.cget('bg')).pack(side="left", pady=6)
         self.change_var = tk.StringVar(value="0.00")
         tk.Label(pay_box, textvariable=self.change_var, font=("Arial", 12, "bold"), bg=pay_box.cget('bg')).pack(side="left", padx=(6, 12), pady=6)
-        btn = tk.Button(pay_box, text="Satışı Tamamla", command=self.complete_sale, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff")
+        btn = ttk.Button(pay_box, text="Satışı Tamamla", command=self.complete_sale)
         btn.pack(side='left', padx=(6, 8), pady=6)
         # Enlarge button approximately to 100x50 using internal padding
         btn.pack_configure(ipadx=24, ipady=6)
@@ -482,7 +506,7 @@ class ReturnFrame(tk.Frame):
         tk.Label(sb, text="Barkod/İsim:").pack(side="left")
         self.entry_scan = tk.Entry(sb)
         self.entry_scan.pack(side="left", fill="x", expand=True, padx=(6, 6))
-        tk.Button(sb, text="Satışları Listele", command=self._list_sales_for_product, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(0, 10))
+        ttk.Button(sb, text="Satışları Listele", command=self._list_sales_for_product).pack(side="left", padx=(0, 10))
         tk.Label(sb, text="İade Adedi:").pack(side="left")
         vcmd = (self.register(lambda s: s.isdigit() or s==''), '%P')
         # Numeric up-down for quantity (integer only)
@@ -491,8 +515,8 @@ class ReturnFrame(tk.Frame):
         self.entry_qty.insert(0, "1")
         self.entry_qty.pack(side="left", padx=(6, 6))
         self.entry_qty.bind('<FocusOut>', lambda _e: self._qty_clamp(self.entry_qty))
-        tk.Button(sb, text="Ekle", command=self.add_to_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(sb, text="Sepeti Temizle", command=self.clear_cart, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(8, 0))
+        ttk.Button(sb, text="Ekle", command=self.add_to_cart).pack(side="left")
+        ttk.Button(sb, text="Sepeti Temizle", command=self.clear_cart).pack(side="left", padx=(8, 0))
 
         # Past purchases list
         purchases_frame = tk.Frame(self)
@@ -544,7 +568,7 @@ class ReturnFrame(tk.Frame):
         else:
             self.entry_date = tk.Entry(left_box, width=20)
         self.entry_date.pack(side="left", padx=(6, 6))
-        tk.Button(left_box, text="Şimdi", command=self._set_now, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(0, 20))
+        ttk.Button(left_box, text="Şimdi", command=self._set_now).pack(side="left", padx=(0, 20))
         self.total_var = tk.StringVar(value="0.00")
         tk.Label(left_box, text="İade Tutarı:").pack(side="left")
         tk.Label(left_box, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
@@ -560,7 +584,7 @@ class ReturnFrame(tk.Frame):
         tk.Label(pay_box, text="Fark:", bg=pay_box.cget('bg')).pack(side="left", pady=6)
         self.change_var = tk.StringVar(value="0.00")
         tk.Label(pay_box, textvariable=self.change_var, font=("Arial", 12, "bold"), bg=pay_box.cget('bg')).pack(side="left", padx=(6,12), pady=6)
-        btnr = tk.Button(pay_box, text="İadeyi Tamamla", command=self.complete_return, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff")
+        btnr = ttk.Button(pay_box, text="İadeyi Tamamla", command=self.complete_return)
         btnr.pack(side='left', padx=(6,8), pady=6)
         btnr.pack_configure(ipadx=24, ipady=6)
         # Track user edits on paid field for return flow

@@ -244,14 +244,17 @@ class ReportsFrame(tk.Frame):
         self._build_inventory_tab()
 
         # Header actions
-        tk.Button(header, text="PDF", command=self._export_pdf, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="right", padx=(0, 8), pady=(16, 6))
-        tk.Button(header, text="Yazdır", command=self._print_preview, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="right", padx=(0, 8), pady=(16, 6))
+        self.btn_pdf = ttk.Button(header, text="PDF", command=self._export_pdf)
+        self.btn_pdf.pack(side="right", padx=(0, 8), pady=(16, 6))
+        self.btn_print = ttk.Button(header, text="Yazdır", command=self._print_preview)
+        self.btn_print.pack(side="right", padx=(0, 8), pady=(16, 6))
 
         self.refresh()
 
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Raporlar")
         self.refresh()
+        self.refresh_style()
 
     # Navigation
     def go_back(self) -> None:
@@ -265,7 +268,8 @@ class ReportsFrame(tk.Frame):
     def _build_daily_tab(self) -> None:
         bar = tk.Frame(self.daily_tab)
         bar.pack(fill="x", padx=20, pady=(10, 6))
-        tk.Button(bar, text="<", width=3, command=lambda: self._change_day(-1), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        self.btn_day_prev = ttk.Button(bar, text="<", width=3, command=lambda: self._change_day(-1))
+        self.btn_day_prev.pack(side="left")
         if _DateEntry is not None:
             self.daily_date = _DateEntry(bar, date_pattern="yyyy-mm-dd", state="readonly")
             try:
@@ -276,9 +280,12 @@ class ReportsFrame(tk.Frame):
             self.daily_date = tk.Entry(bar, width=12)
             self.daily_date.insert(0, date.today().isoformat())
         self.daily_date.pack(side="left", padx=(6, 6))
-        tk.Button(bar, text=">", width=3, command=lambda: self._change_day(1), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(bar, text="Bugün", command=self._set_today, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=(6, 12))
-        tk.Button(bar, text="Yenile", command=self._refresh_daily, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        self.btn_day_next = ttk.Button(bar, text=">", width=3, command=lambda: self._change_day(1))
+        self.btn_day_next.pack(side="left")
+        self.btn_today = ttk.Button(bar, text="Bugün", command=self._set_today)
+        self.btn_today.pack(side="left", padx=(6, 12))
+        self.btn_refresh_daily = ttk.Button(bar, text="Yenile", command=self._refresh_daily)
+        self.btn_refresh_daily.pack(side="left")
 
         columns = ("id", "time", "total")
         self.sales_tree = ttk.Treeview(self.daily_tab, columns=columns, show="headings", height=12)
@@ -366,8 +373,10 @@ class ReportsFrame(tk.Frame):
         tk.Label(actions, text="Açıklama").grid(row=0, column=2, sticky="w")
         self.cash_desc = tk.Entry(actions, width=40)
         self.cash_desc.grid(row=0, column=3, sticky="w", padx=(6, 10))
-        tk.Button(actions, text="Kasaya Ekle", command=lambda: self._cash_op('in'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").grid(row=0, column=4, padx=(6, 0))
-        tk.Button(actions, text="Kasadan Çık", command=lambda: self._cash_op('out'), bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").grid(row=0, column=5, padx=(6, 0))
+        self.btn_cash_in = ttk.Button(actions, text="Kasaya Ekle", command=lambda: self._cash_op('in'))
+        self.btn_cash_in.grid(row=0, column=4, padx=(6, 0))
+        self.btn_cash_out = ttk.Button(actions, text="Kasadan Çık", command=lambda: self._cash_op('out'))
+        self.btn_cash_out.grid(row=0, column=5, padx=(6, 0))
 
         # Transfer to bank
         tk.Label(actions, text="Bankaya aktar tutarı").grid(row=1, column=0, sticky="w")
@@ -376,7 +385,8 @@ class ReportsFrame(tk.Frame):
         tk.Label(actions, text="Açıklama").grid(row=1, column=2, sticky="w")
         self.transfer_desc = tk.Entry(actions, width=40)
         self.transfer_desc.grid(row=1, column=3, sticky="w", padx=(6, 10))
-        tk.Button(actions, text="Bankaya Aktar", command=self._transfer_to_bank, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").grid(row=1, column=4, padx=(6, 0))
+        self.btn_transfer = ttk.Button(actions, text="Bankaya Aktar", command=self._transfer_to_bank)
+        self.btn_transfer.grid(row=1, column=4, padx=(6, 0))
 
         actions.columnconfigure(3, weight=1)
 
@@ -810,3 +820,28 @@ class ReportsFrame(tk.Frame):
                 webbrowser.open(f"file://{pdf_path}")
             except Exception:
                 messagebox.showinfo("PDF hazır", f"PDF hazır: {pdf_path}")
+
+    def refresh_style(self):
+        theme = getattr(self.controller, "saved_theme", "light")
+        style = ttk.Style()
+        if theme == "dark":
+            style.configure("Custom.TButton", background="white", foreground="black")
+            style.configure("Treeview", background="#1e2023", fieldbackground="#1e2023", foreground="white")
+            style.configure("TNotebook.Tab", background="#1e2023", foreground="white")
+        else:
+            style.configure("Custom.TButton", background="#1e2023", foreground="white")
+            style.configure("Treeview", background="white", fieldbackground="white", foreground="black")
+            style.configure("TNotebook.Tab", background="white", foreground="black")
+        for btn in (
+            getattr(self, "btn_pdf", None),
+            getattr(self, "btn_print", None),
+            getattr(self, "btn_day_prev", None),
+            getattr(self, "btn_day_next", None),
+            getattr(self, "btn_today", None),
+            getattr(self, "btn_refresh_daily", None),
+            getattr(self, "btn_cash_in", None),
+            getattr(self, "btn_cash_out", None),
+            getattr(self, "btn_transfer", None),
+        ):
+            if btn:
+                btn.configure(style="Custom.TButton")

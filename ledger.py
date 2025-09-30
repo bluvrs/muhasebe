@@ -84,9 +84,12 @@ class LedgerFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(6, 8))
-        tk.Button(btns, text="Ekle", command=self.add_entry, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
-        tk.Button(btns, text="Guncelle", command=self.update_entry, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left", padx=8)
-        tk.Button(btns, text="Sil", command=self.delete_entry, bg="#1e2023", fg="#ffffff", activebackground="#2a2f33", activeforeground="#ffffff").pack(side="left")
+        self.btn_add = ttk.Button(btns, text="Ekle", command=self.add_entry)
+        self.btn_add.pack(side="left")
+        self.btn_update = ttk.Button(btns, text="Guncelle", command=self.update_entry)
+        self.btn_update.pack(side="left", padx=8)
+        self.btn_delete = ttk.Button(btns, text="Sil", command=self.delete_entry)
+        self.btn_delete.pack(side="left")
 
         # List
         columns = ("id", "date", "type", "amount", "description", "invoice_no", "company")
@@ -138,6 +141,22 @@ class LedgerFrame(tk.Frame):
         except Exception:
             pass
         self.refresh()
+        self.refresh_style()
+
+    def refresh_style(self):
+        theme = getattr(self.controller, "saved_theme", "light")
+        style = ttk.Style()
+        if theme == "dark":
+            style.configure("Custom.TButton", background="white", foreground="black")
+            style.configure("Treeview", background="#1e2023", fieldbackground="#1e2023", foreground="white")
+            style.configure("TNotebook.Tab", background="#1e2023", foreground="white")
+        else:
+            style.configure("Custom.TButton", background="#1e2023", foreground="white")
+            style.configure("Treeview", background="white", fieldbackground="white", foreground="black")
+            style.configure("TNotebook.Tab", background="white", foreground="black")
+        for btn in (getattr(self, "btn_add", None), getattr(self, "btn_update", None), getattr(self, "btn_delete", None)):
+            if btn:
+                btn.configure(style="Custom.TButton")
 
     def _on_tab_changed(self) -> None:
         try:
