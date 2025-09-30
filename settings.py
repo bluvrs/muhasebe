@@ -24,12 +24,19 @@ class SettingsFrame(tk.Frame):
         tk.Label(header, text="Ayarlar", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
 
         # === School Name Card ===
+        def _autosize_card(card: tk.Frame, inner: tk.Frame, min_w: int = 560, pad: int = 12) -> None:
+            try:
+                inner.update_idletasks()
+                req_h = inner.winfo_reqheight()
+                req_w = max(min_w, inner.winfo_reqwidth() + 2*pad)
+                card.configure(width=req_w, height=req_h + 2*pad)
+            except Exception:
+                # Ölçüm başarısız olursa güvenli bir yükseklik kullan
+                card.configure(width=min_w, height=200)
         name_holder = tk.Frame(self)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
         name_card, name_inner = rounded_outline(name_holder, radius=12, padding=12, border='#888')
-        name_card.configure(width=560, height=140)
-        name_card.pack_propagate(False)
-        name_card.pack(anchor='center')
+        name_card.pack(anchor='center', fill='x')
         tint_name = smart_tinted_bg(self)
         name_inner.configure(bg=tint_name)
         tk.Label(name_inner, text="Okul Adı (Rapor Başlığı)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
@@ -38,29 +45,29 @@ class SettingsFrame(tk.Frame):
         self.entry_school = tk.Entry(row_name, width=40)
         self.entry_school.pack(side='left', padx=(0, 8))
         tk.Button(row_name, text="Kaydet", command=self.save).pack(side='left')
+        # Kart yüksekliğini içeriğe göre ayarla (Kaydet butonu görünür kalsın)
+        _autosize_card(name_card, name_inner, min_w=560, pad=12)
+        name_card.pack_propagate(False)
 
         # === Theme Card ===
         theme_holder = tk.Frame(self)
         theme_holder.pack(fill='x', padx=20, pady=(4, 8))
         theme_card, theme_inner = rounded_outline(theme_holder, radius=12, padding=12, border='#888')
-        theme_card.configure(width=560, height=120)
-        theme_card.pack_propagate(False)
-        theme_card.pack(anchor='center')
+        theme_card.pack(anchor='center', fill='x')
         tint_theme = smart_tinted_bg(self)
         theme_inner.configure(bg=tint_theme)
         tk.Label(theme_inner, text="Tema", font=("Arial", 12, "bold"), bg=tint_theme).pack(anchor='center')
         self.var_dark = tk.BooleanVar(value=False)
         tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme).pack(anchor='center', pady=(6, 0))
+        _autosize_card(theme_card, theme_inner, min_w=560, pad=12)
+        theme_card.pack_propagate(False)
 
         # DB utils
         # DB card centered and compact (just fits 3 buttons)
         db_holder = tk.Frame(self)
         db_holder.pack(fill='x', padx=20, pady=(12,0))
         db_card, db_inner = rounded_outline(db_holder, radius=12, padding=12, border='#888')
-        # Limit size: just enough for three buttons
-        db_card.configure(width=560, height=120)
-        db_card.pack_propagate(False)
-        db_card.pack(anchor='center')
+        db_card.pack(anchor='center', fill='x')
         tint = smart_tinted_bg(self)
         db_inner.configure(bg=tint)
         # Title + buttons centered inside card
@@ -72,6 +79,8 @@ class SettingsFrame(tk.Frame):
         # Restart button (hidden until reset)
         self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden Başlat", command=self.restart_app)
 
+        _autosize_card(db_card, db_inner, min_w=560, pad=12)
+        db_card.pack_propagate(False)
         self.status_var = tk.StringVar(value="")
         tk.Label(self, textvariable=self.status_var, fg="#444").pack(fill='x', padx=20, pady=(4, 0))
 

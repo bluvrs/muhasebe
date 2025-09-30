@@ -68,18 +68,18 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
         # Global scaling (makes all points render larger)
         try:
             # Double-size UI by default
-            root.tk.call('tk', 'scaling', float(scale) if scale else 2.0)
+            root.tk.call('tk', 'scaling', float(scale) if scale else 1.2)
         except Exception:
             pass
 
         import tkinter.font as tkfont
         # Bump core fonts noticeably
         for fname, size, weight in (
-            ('TkDefaultFont', 16, 'normal'),
-            ('TkTextFont', 16, 'normal'),
-            ('TkMenuFont', 16, 'normal'),
-            ('TkHeadingFont', 21, 'bold'),
-            ('TkTooltipFont', 15, 'normal'),
+            ('TkDefaultFont', 13, 'normal'),
+            ('TkTextFont', 13, 'normal'),
+            ('TkMenuFont', 13, 'normal'),
+            ('TkHeadingFont', 18, 'bold'),
+            ('TkTooltipFont', 12, 'normal'),
         ):
             try:
                 f = tkfont.nametofont(fname)
@@ -210,7 +210,10 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
 def _apply_light_palette(style, root: tk.Tk) -> None:
     bg = '#ffffff'
     fg = '#222222'
-    accent = '#f2f2f2'
+    accent = '#e0e0e0'  # general light surfaces (tabs, headings)
+    btn_bg = '#1e2023'  # requested button color
+    btn_bg_active = '#2a2f33'
+    btn_fg = '#ffffff'
     sel_bg = '#cde8ff'
     sel_fg = '#000000'
     try:
@@ -223,11 +226,11 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
         root.option_add('*Entry.InsertBackground', fg)
         root.option_add('*Entry.SelectBackground', sel_bg)
         root.option_add('*Entry.SelectForeground', sel_fg)
-        # tk.Button
-        root.option_add('*Button.Background', accent)
-        root.option_add('*Button.Foreground', fg)
-        root.option_add('*Button.ActiveBackground', '#e6e6e6')
-        root.option_add('*Button.ActiveForeground', fg)
+        # tk.Button (classic)
+        root.option_add('*Button.Background', btn_bg)
+        root.option_add('*Button.Foreground', btn_fg)
+        root.option_add('*Button.ActiveBackground', btn_bg_active)
+        root.option_add('*Button.ActiveForeground', btn_fg)
         # Others
         root.option_add('*Menubutton.Background', accent)
         root.option_add('*Menubutton.Foreground', fg)
@@ -246,8 +249,9 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
     style.configure('.', background=bg, foreground=fg)
     style.configure('TFrame', background=bg)
     style.configure('TLabel', background=bg, foreground=fg)
-    style.configure('TButton', background=accent, foreground=fg, relief='flat', borderwidth=0)
-    style.map('TButton', background=[('active', '#e6e6e6')], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
+    # ttk Button styling (override to requested color)
+    style.configure('TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0)
+    style.map('TButton', background=[('active', btn_bg_active)], foreground=[('active', btn_fg)], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
     style.configure('TNotebook', background=bg)
     style.configure('TNotebook.Tab', background=accent, foreground=fg)
     style.map('TNotebook.Tab', background=[('selected', bg)])

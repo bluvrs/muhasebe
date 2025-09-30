@@ -324,6 +324,27 @@ class LoginFrame(tk.Frame):
                 self.card_container.destroy()
         except Exception:
             pass
+        # Place school name outside the login card, centered at the top
+        try:
+            if hasattr(self, 'school_label') and getattr(self, 'school_label') is not None:
+                try:
+                    self.school_label.destroy()
+                except Exception:
+                    pass
+            school_name = None
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            cur.execute("SELECT value FROM settings WHERE key='report_school_name'")
+            row = cur.fetchone()
+            conn.close()
+            if row and row[0]:
+                school_name = str(row[0]).strip()
+            if school_name:
+                self.school_label = tk.Label(self, text=school_name, font=("Arial", 20, "bold"))
+                self.school_label.pack(side='top', pady=(18, 6))
+        except Exception:
+            pass
         # Rounded outline container with larger size (≈1.5x)
         self.card_container, inner = rounded_outline(self, radius=16, padding=18, border='#888')
         self.card_container.place(relx=0.5, rely=0.5, anchor='center')
@@ -389,20 +410,62 @@ class RoleFrame(tk.Frame):
             tk.Label(self, text=description, wraplength=360, justify="center").pack(pady=20)
 
         if actions:
-            # Grid square menu buttons in two columns
-            grid = tk.Frame(self)
-            grid.pack(pady=10)
-            cols = 2
-            for idx, action in enumerate(actions):
+            # Responsive grid of square menu buttons (2/3/4 columns based on width)
+            self.grid_frame = tk.Frame(self)
+            self.grid_frame.pack(padx=16, pady=10, fill='both', expand=True)
+
+            self._buttons: List[tk.Button] = []
+            for action in actions:
                 handler = None
                 if action_handlers:
                     handler = action_handlers.get(action)
                 if handler is None:
                     handler = lambda name=action: controller.show_placeholder(name)
-                btn = create_menu_button(grid, action, handler)
-                r, c = divmod(idx, cols)
-                btn.grid(row=r, column=c, padx=10, pady=10, sticky='nsew')
-                grid.grid_columnconfigure(c, weight=1)
+                btn = create_menu_button(self.grid_frame, action, handler)
+                self._buttons.append(btn)
+
+            self._current_cols = 0
+
+            def _desired_cols(width: int) -> int:
+                # Breakpoints for column count
+                if width >= 1400:
+                    return 4
+                if width >= 1000:
+                    return 3
+                if width >= 680:
+                    return 2
+                return 1
+
+            def _layout(cols: int) -> None:
+                # Clear old grid configs
+                for i in range(0, 8):
+                    try:
+                        self.grid_frame.grid_columnconfigure(i, weight=0)
+                    except Exception:
+                        pass
+                # Place buttons
+                for idx, btn in enumerate(self._buttons):
+                    r, c = divmod(idx, cols)
+                    btn.grid(row=r, column=c, padx=10, pady=10, sticky='nsew')
+                for c in range(cols):
+                    self.grid_frame.grid_columnconfigure(c, weight=1)
+
+            def _on_resize(_e=None):
+                try:
+                    w = self.grid_frame.winfo_width()
+                    if w <= 1:
+                        # Use requested width before first layout
+                        w = self.winfo_width()
+                except Exception:
+                    w = 800
+                cols = _desired_cols(int(w))
+                if cols != self._current_cols:
+                    self._current_cols = cols
+                    _layout(cols)
+
+            # Initial layout, then reflow on resize
+            self.after(0, _on_resize)
+            self.bind('<Configure>', _on_resize)
 
         tk.Button(self, text="Çıkış yap", command=self.controller.logout).pack(pady=30)
 
@@ -467,6 +530,11 @@ class CashierFrame(RoleFrame):
         description = "Barkod okutun ve işlemleri tamamlayın."
         actions = ["Yeni satış", "İade işlemi"]
         handlers: Dict[str, Callable[[], None]] = {}
+        # Kasiyer sadece satis yapabilsin: iade eylemini menuden kaldir
+        try:
+            actions = [a for a in actions if 'Yeni' in str(a)]
+        except Exception:
+            pass
         if SalesFrame is not None:
             handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
         else:
