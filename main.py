@@ -1,9 +1,9 @@
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
-from ui import apply_theme, create_menu_button, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins
+from ui import apply_theme, create_menu_button, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins
 import sqlite3 as _sqlite3
 from typing import Tuple
 try:
@@ -194,9 +194,27 @@ class App(tk.Tk):
         try:
             scale, theme = self._load_ui_settings()
             apply_theme(self, scale=scale, theme_name=theme)
+            try:
+                self.ui_scale = float(scale)
+            except Exception:
+                self.ui_scale = 1.5
+            # remember user preference
+            self.saved_scale = self.ui_scale
+            self.saved_theme = theme
+            try:
+                self.set_min_window_for_scale(self.ui_scale)
+            except Exception:
+                pass
         except Exception:
             try:
                 apply_theme(self)
+                self.ui_scale = 1.5
+                self.saved_scale = 1.5
+                self.saved_theme = None
+                try:
+                    self.set_min_window_for_scale(self.ui_scale)
+                except Exception:
+                    pass
             except Exception:
                 pass
         self.frames: Dict[Type[tk.Frame], tk.Frame] = {}
@@ -219,6 +237,20 @@ class App(tk.Tk):
         self.show_frame(LoginFrame)
 
     def show_frame(self, frame_class: Type[tk.Frame], **kwargs) -> None:
+        # Ensure 2x scaling on Login; otherwise use saved scale from settings
+        try:
+            desired_scale = 2.0 if frame_class.__name__ == 'LoginFrame' else getattr(self, 'saved_scale', None)
+            desired_theme = getattr(self, 'saved_theme', None)
+            if desired_scale is not None:
+                apply_theme(self, scale=desired_scale, theme_name=desired_theme)
+                try:
+                    self.ui_scale = float(desired_scale)
+                    if hasattr(self, 'set_min_window_for_scale'):
+                        self.set_min_window_for_scale(self.ui_scale)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         frame = self.frames.get(frame_class)
         if frame is None:
             frame = frame_class(parent=self.container, controller=self)
@@ -227,9 +259,16 @@ class App(tk.Tk):
         if hasattr(frame, "on_show"):
             frame.on_show(**kwargs)
         frame.tkraise()
-        # Ensure inputs have comfortable spacing on each screen
+        # Ensure inputs have comfortable spacing on most screens (skip Login)
         try:
-            apply_entry_margins(frame, pady=8)
+            if frame.__class__.__name__ != 'LoginFrame':
+                apply_entry_margins(frame, pady=8)
+        except Exception:
+            pass
+        # Ensure all buttons have consistent external margins (skip Login)
+        try:
+            if frame.__class__.__name__ != 'LoginFrame':
+                apply_button_margins(frame, padx=12, pady=12)
         except Exception:
             pass
 
@@ -246,11 +285,14 @@ class App(tk.Tk):
             conn = _sqlite3.connect(DB_NAME)
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-            cur.execute("SELECT key, value FROM settings WHERE key IN ('ui_theme')")
+            cur.execute("SELECT key, value FROM settings WHERE key IN ('ui_theme','ui_scale')")
             rows = dict(cur.fetchall())
             conn.close()
-            # Force 2x scaling per request
-            scale = 2.0
+            # Load scale if available
+            try:
+                scale = float(rows.get('ui_scale') or 1.5)
+            except Exception:
+                scale = 1.5
             theme = None
             if 'ui_theme' in rows and rows['ui_theme']:
                 theme = rows['ui_theme']
@@ -265,6 +307,11 @@ class App(tk.Tk):
                     frame.on_theme_changed()
         except Exception:
             pass
+        # Adjust window minimum size for current scale
+        try:
+            self.set_min_window_for_scale(getattr(self, 'ui_scale', 1.5))
+        except Exception:
+            pass
         # Fallback: manually size to screen
         try:
             self.update_idletasks()
@@ -273,6 +320,17 @@ class App(tk.Tk):
             self.geometry(f"{w}x{h}+0+0")
         except Exception:
             # If anything fails, keep default size
+            pass
+
+    def set_min_window_for_scale(self, scale: float) -> None:
+        """Set a minimum window size that comfortably fits UI at given scale."""
+        try:
+            base_w, base_h = 800, 600
+            w = int(base_w * max(1.0, float(scale)))
+            h = int(base_h * max(1.0, float(scale)))
+            self.minsize(w, h)
+            self.ui_scale = float(scale)
+        except Exception:
             pass
 
     def authenticate(self, username: str, password: str) -> None:
@@ -324,47 +382,29 @@ class LoginFrame(tk.Frame):
                 self.card_container.destroy()
         except Exception:
             pass
-        # Place school name outside the login card, centered at the top
-        try:
-            if hasattr(self, 'school_label') and getattr(self, 'school_label') is not None:
-                try:
-                    self.school_label.destroy()
-                except Exception:
-                    pass
-            school_name = None
-            conn = sqlite3.connect(DB_NAME)
-            cur = conn.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-            cur.execute("SELECT value FROM settings WHERE key='report_school_name'")
-            row = cur.fetchone()
-            conn.close()
-            if row and row[0]:
-                school_name = str(row[0]).strip()
-            if school_name:
-                self.school_label = tk.Label(self, text=school_name, font=("Arial", 20, "bold"))
-                self.school_label.pack(side='top', pady=(18, 6))
-        except Exception:
-            pass
-        # Rounded outline container with larger size (≈1.5x)
-        self.card_container, inner = rounded_outline(self, radius=16, padding=18, border='#888')
-        self.card_container.place(relx=0.5, rely=0.5, anchor='center')
+        
+        # Plain rectangular login card (no rounded canvas)
         tint = smart_tinted_bg(self)
-        inner.configure(bg=tint)
-        center = tk.Frame(inner, bg=tint)
-        center.pack(expand=True)
+        self.card_container = tk.Frame(self, bg=tint, bd=1, relief='solid')
+        self.card_container.place(relx=0.5, rely=0.5, anchor='center', width=560, height=420)
 
-        tk.Label(center, text="Kooperatif Giriş", font=("Arial", 18, "bold"), bg=tint).pack(pady=(0, 14))
+        inner = tk.Frame(self.card_container, bg=tint)
+        inner.pack(fill='both', expand=True, padx=20, pady=16)
 
-        tk.Label(center, text="Kullanıcı adı", bg=tint).pack(anchor='center')
-        self.entry_user = tk.Entry(center, width=42)
-        self.entry_user.pack()
-        self.entry_user.bind("<Return>", lambda _e: self.do_login())
+        tk.Label(inner, text='Kooperatif Giris', font=('Arial', 18, 'bold'), bg=tint).pack(pady=(0, 10))
 
-        tk.Label(center, text="Şifre", bg=tint).pack(anchor='center', pady=(10, 0))
-        self.entry_pass = tk.Entry(center, show="*", width=42)
-        self.entry_pass.pack()
-        self.entry_pass.bind("<Return>", lambda _e: self.do_login())
-        tk.Button(center, text="Giriş Yap", command=self.do_login).pack(pady=(14, 2))
+        tk.Label(inner, text='Kullanici adi', bg=tint).pack(anchor='center', pady=(4, 2))
+        self.entry_user = ttk.Entry(inner)
+        self.entry_user.pack(fill='x', padx=24, pady=(0, 6))
+        self.entry_user.bind('<Return>', lambda _e: self.do_login())
+
+        tk.Label(inner, text='Sifre', bg=tint).pack(anchor='center', pady=(8, 2))
+        self.entry_pass = ttk.Entry(inner, show='*')
+        self.entry_pass.pack(fill='x', padx=24, pady=(0, 10))
+        self.entry_pass.bind('<Return>', lambda _e: self.do_login())
+
+        ttk.Button(inner, text='Giris Yap', command=self.do_login).pack(pady=(8, 6))
+
 
     def _on_return(self, event: tk.Event) -> None:  # type: ignore[name-defined]
         self.do_login()
@@ -513,7 +553,29 @@ class AdminFrame(RoleFrame):
             handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
         else:
             handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
+        # Ensure Investors tab opens even if class failed to import at startup
+        def _show_investors():
+            try:
+                from investors import InvestorsFrame as _IF  # type: ignore
+                controller.show_frame(_IF)  # type: ignore[arg-type]
+            except Exception:
+                controller.show_placeholder("Yatırımcılar")
+        handlers["Yat��r��mc��lar"] = _show_investors
         # Reports
+        # Ensure Investors menu opens even with encoding/import issues
+        def _open_investors():
+            try:
+                from investors import InvestorsFrame as _IF  # type: ignore
+                controller.show_frame(_IF)  # type: ignore[arg-type]
+            except Exception:
+                controller.show_placeholder("Yatırımcılar")
+        try:
+            for _k in list(actions):
+                if isinstance(_k, str) and 'yat' in _k.lower():
+                    handlers[_k] = _open_investors
+        except Exception:
+            pass
+
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
         else:
@@ -594,6 +656,14 @@ class ManagerFrame(RoleFrame):
             handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
         else:
             handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
+        # Ensure Investors menu opens even with encoding/import issues (manager)
+        try:
+            for _k in list(actions):
+                if isinstance(_k, str) and 'yat' in _k.lower():
+                    handlers[_k] = _open_investors
+        except Exception:
+            pass
+
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
         else:
@@ -609,3 +679,9 @@ if __name__ == "__main__":
     init_db()
     app = App()
     app.mainloop()
+
+
+
+
+
+

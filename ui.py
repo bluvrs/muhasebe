@@ -129,7 +129,7 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
             pass
 
         # Buttons
-        style.configure('TButton', padding=(12, 10))
+        style.configure('TButton', padding=(12, 2))
         style.map('TButton', relief=[('pressed', 'sunken'), ('!pressed', 'raised')])
         # Notebook tabs
         style.configure('TNotebook.Tab', padding=(14, 10))
@@ -202,6 +202,11 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     style.map('Treeview', background=[('selected', sel_bg)], foreground=[('selected', sel_fg)])
     style.configure('Treeview.Heading', background='#333333', foreground=fg)
     style.configure('TEntry', fieldbackground=accent, foreground=fg)
+    # Inner padding for ttk.Entry in dark theme
+    try:
+        style.configure('TEntry', padding=(8, 6))
+    except Exception:
+        pass
     # Make combobox/button visuals readable on dark theme
     style.configure('TCombobox', fieldbackground=light_btn_bg, background=light_btn_bg, foreground='#000000')
     style.map('TCombobox', fieldbackground=[('readonly', light_btn_bg)], foreground=[('readonly', '#000000')])
@@ -259,20 +264,51 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
     style.map('Treeview', background=[('selected', sel_bg)], foreground=[('selected', sel_fg)])
     style.configure('Treeview.Heading', background=accent, foreground=fg)
     style.configure('TEntry', fieldbackground='#ffffff', foreground=fg)
+    # Inner padding for ttk.Entry in light theme
+    try:
+        style.configure('TEntry', padding=(8, 6))
+    except Exception:
+        pass
     style.configure('TCombobox', fieldbackground='#ffffff', background='#ffffff', foreground=fg)
     style.map('TCombobox', fieldbackground=[('readonly', '#ffffff')], foreground=[('readonly', fg)])
 
 
-def create_menu_button(parent: tk.Misc, text: str, command) -> tk.Button:
-    """Create a big, square-like menu button for role dashboards.
-    Uses fixed character width/height for a consistent square feel.
+def _icon_for_action(label: str) -> tuple[str, str]:
+    """Return (icon, short_label) based on action text heuristics.
+    Uses emoji so we don't depend on external image files.
     """
+    low = (label or "").lower()
+    # Heuristics tolerant to minor encoding issues
+    if 'sat' in low:          # Yeni satış
+        return '🛒', 'Satış'
+    if 'ade' in low:          # İade işlemi
+        return '↩️', 'İade'
+    if 'rapor' in low:
+        return '📊', 'Raporlar'
+    if 'ayar' in low:
+        return '⚙️', 'Ayarlar'
+    if 'gelir' in low or 'gider' in low:
+        return '💰', 'Gelir/Gider'
+    if 'yat' in low:          # Yatırımcılar
+        return '💼', 'Yatırımcılar'
+    if 'üye' in low or 'uye' in low or 'oy' in low:  # Üye yönetimi (garbled tolerant)
+        return '👥', 'Üyeler'
+    if 'ür' in low or 'urun' in low or 'prod' in low:
+        return '📦', 'Ürünler'
+    return '🔘', label
+
+
+def create_menu_button(parent: tk.Misc, text: str, command) -> tk.Button:
+    """Create a big, icon-first menu button for role dashboards.
+    Icons are emoji placed over a short label. No wrapping.
+    """
+    icon, short = _icon_for_action(text)
+    btn_text = f"{icon}\n{short}"
     btn = tk.Button(
         parent,
-        text=text,
+        text=btn_text,
         width=14,   # chars
-        height=4,   # text lines
-        wraplength=120,
+        height=5,   # text lines to fit icon+label comfortably
         justify='center',
         relief='flat',
         bd=0,
@@ -362,7 +398,10 @@ def smart_tinted_bg(widget: tk.Misc, light_amount: float = -0.06, dark_amount: f
 
 
 def apply_entry_margins(container: tk.Misc, pady: int = 6, padx: int = 0) -> None:
-    """Walk the widget tree under container and add vertical margins to Entry/Spinbox widgets.
+    """Walk the widget tree under container and add margins and internal padding
+    to Entry/Spinbox widgets.
+    - External spacing: pady/padx (min values)
+    - Internal padding: sets a comfortable ipady/ipadx if smaller than desired
     Works for both pack and grid managers without altering order.
     """
     try:
@@ -384,22 +423,76 @@ def apply_entry_margins(container: tk.Misc, pady: int = 6, padx: int = 0) -> Non
                 if manager == 'pack':
                     info = w.pack_info()
                     cur_pady = info.get('pady', 0)
+                    cur_ipady = info.get('ipady', 0)
+                    cur_ipadx = info.get('ipadx', 0)
                     if not isinstance(cur_pady, (list, tuple)):
                         cur = int(cur_pady)
                     else:
                         cur = max(int(cur_pady[0]), int(cur_pady[1]))
                     if cur < pady:
                         w.pack_configure(pady=pady, padx=padx)
+                    # Inner padding for a comfier text field
+                    if int(cur_ipady or 0) < 4:
+                        w.pack_configure(ipady=4)
+                    if int(cur_ipadx or 0) < 6:
+                        w.pack_configure(ipadx=6)
                 elif manager == 'grid':
                     info = w.grid_info()
                     cur_pady = info.get('pady', 0)
+                    cur_ipady = info.get('ipady', 0)
+                    cur_ipadx = info.get('ipadx', 0)
                     if not isinstance(cur_pady, (list, tuple)):
                         cur = int(cur_pady)
                     else:
                         cur = max(int(cur_pady[0]), int(cur_pady[1]))
                     if cur < pady:
                         w.grid_configure(pady=pady, padx=padx)
+                    if int(cur_ipady or 0) < 4:
+                        w.grid_configure(ipady=4)
+                    if int(cur_ipadx or 0) < 6:
+                        w.grid_configure(ipadx=6)
             except Exception:
                 pass
         # Recurse
         apply_entry_margins(w, pady=pady, padx=padx)
+
+
+def apply_button_margins(container: tk.Misc, pady: int = 12, padx: int = 12) -> None:
+    """Ensure all Button/ttk.Button widgets under container have at least the
+    given external margins (pady/padx). Works for both pack and grid managers.
+    """
+    try:
+        children = container.winfo_children()
+    except Exception:
+        return
+    for w in children:
+        try:
+            manager = w.winfo_manager()
+        except Exception:
+            manager = ''
+        try:
+            cls = str(w.winfo_class()).lower()
+        except Exception:
+            cls = ''
+        is_button = isinstance(w, tk.Button) or 'button' in cls
+        if is_button:
+            try:
+                if manager == 'pack':
+                    info = w.pack_info()
+                    cur_pady = info.get('pady', 0)
+                    cur_padx = info.get('padx', 0)
+                    cur_py = int(cur_pady if not isinstance(cur_pady, (list, tuple)) else max(cur_pady))
+                    cur_px = int(cur_padx if not isinstance(cur_padx, (list, tuple)) else max(cur_padx))
+                    if cur_py < pady or cur_px < padx:
+                        w.pack_configure(pady=max(pady, cur_py), padx=max(padx, cur_px))
+                elif manager == 'grid':
+                    info = w.grid_info()
+                    cur_pady = info.get('pady', 0)
+                    cur_padx = info.get('padx', 0)
+                    cur_py = int(cur_pady if not isinstance(cur_pady, (list, tuple)) else max(cur_pady))
+                    cur_px = int(cur_padx if not isinstance(cur_padx, (list, tuple)) else max(cur_padx))
+                    if cur_py < pady or cur_px < padx:
+                        w.grid_configure(pady=max(pady, cur_py), padx=max(padx, cur_px))
+            except Exception:
+                pass
+        apply_button_margins(w, pady=pady, padx=padx)

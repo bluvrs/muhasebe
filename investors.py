@@ -34,10 +34,19 @@ class InvestorsFrame(tk.Frame):
         self.lbl_pool_info = tk.Label(pool, text="")
         self.lbl_pool_info.pack(side="left", padx=(12, 0))
 
+
+        # Tabs: Investors and Transactions
+        nb = ttk.Notebook(self)
+        nb.pack(fill='both', expand=True)
+        tab_list = tk.Frame(nb)
+        tab_tx = tk.Frame(nb)
+        nb.add(tab_list, text='Yatýrýmcýlar')
+        nb.add(tab_tx, text='Yatýrýmcý Ýþlemleri')
+
         # List
         columns = ("id", "name", "phone", "initial_capital", "current_capital", "pool_share_%", "shop_share_%", "initial_date")
         # Keep the top list compact so the transactions list below stays readable
-        self.tree = ttk.Treeview(self, columns=columns, show="headings", height=7)
+        self.tree = ttk.Treeview(tab_list, columns=columns, show="headings", height=7)
         self.tree.heading("id", text="ID")
         self.tree.heading("name", text="Ä°sim")
         self.tree.heading("phone", text="Telefon")
@@ -58,7 +67,7 @@ class InvestorsFrame(tk.Frame):
         self.tree.pack(fill="both", expand=False, padx=20)
 
         # Form
-        form = tk.Frame(self)
+        form = tk.Frame(tab_list)
         form.pack(fill="x", padx=20, pady=10)
 
         tk.Label(form, text="Ä°sim").grid(row=0, column=0, sticky="w")
@@ -93,18 +102,18 @@ class InvestorsFrame(tk.Frame):
         form.columnconfigure(5, weight=2)
 
         # Buttons
-        btns = tk.Frame(self)
+        btns = tk.Frame(tab_list)
         btns.pack(fill="x", padx=20, pady=(0, 10))
         tk.Button(btns, text="Ekle", command=self.add_investor).pack(side="left")
         tk.Button(btns, text="Guncelle", command=self.update_investor).pack(side="left", padx=8)
         tk.Button(btns, text="Sil", command=self.delete_investor).pack(side="left")
 
         # Transactions section
-        sep = ttk.Separator(self, orient="horizontal")
+        sep = ttk.Separator(tab_tx), orient="horizontal")
         sep.pack(fill="x", padx=20, pady=(6, 6))
 
-        tk.Label(self, text="YatÄ±rÄ±mcÄ± Ä°ÅŸlemleri", font=("Arial", 12, "bold")).pack(anchor="w", padx=20)
-        tx_form = tk.Frame(self)
+        tk.Label(tab_tx, text="Yatýrýmcý Ýþlemleri", font=("Arial", 12, "bold")).pack(anchor="w", padx=20)
+        tx_form = tk.Frame(tab_list)
         tx_form.pack(fill="x", padx=20)
         tk.Label(tx_form, text="Tarih").grid(row=0, column=0, sticky="w")
         if _DateEntry is not None:
@@ -124,7 +133,7 @@ class InvestorsFrame(tk.Frame):
         self.tx_notes.grid(row=0, column=5, sticky="ew", padx=(6, 20))
         tx_form.columnconfigure(5, weight=1)
 
-        tx_btns = tk.Frame(self)
+        tx_btns = tk.Frame(tab_list)
         tx_btns.pack(fill="x", padx=20, pady=(6, 6))
         tk.Button(tx_btns, text="Katki Ekle", command=lambda: self.add_tx('contribution')).pack(side="left")
         tk.Button(tx_btns, text="Cekim Ekle", command=lambda: self.add_tx('withdrawal')).pack(side="left", padx=(8, 0))
@@ -132,7 +141,7 @@ class InvestorsFrame(tk.Frame):
 
         tx_cols = ("id", "date", "type", "amount", "notes")
         # Give more room to transactions
-        self.tx_tree = ttk.Treeview(self, columns=tx_cols, show="headings", height=12)
+        self.tx_tree = ttk.Treeview(tab_tx, columns=tx_cols, show="headings", height=12)
         for c, lbl, w, anc in (
             ("id", "ID", 50, "center"),
             ("date", "Tarih", 100, "w"),
@@ -462,3 +471,4 @@ class InvestorsFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh()
+

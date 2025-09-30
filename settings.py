@@ -24,12 +24,18 @@ class SettingsFrame(tk.Frame):
         tk.Label(header, text="Ayarlar", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
 
         # === School Name Card ===
-        def _autosize_card(card: tk.Frame, inner: tk.Frame, min_w: int = 560, pad: int = 12) -> None:
+        def _autosize_card(card: tk.Frame, inner: tk.Frame, min_w: int = 560, pad: int = 12, min_h=None) -> None:
             try:
                 inner.update_idletasks()
                 req_h = inner.winfo_reqheight()
                 req_w = max(min_w, inner.winfo_reqwidth() + 2*pad)
-                card.configure(width=req_w, height=req_h + 2*pad)
+                height = req_h + 2*pad
+                try:
+                    if min_h is not None:
+                        height = max(height, int(min_h))
+                except Exception:
+                    pass
+                card.configure(width=req_w, height=height)
             except Exception:
                 # Ölçüm başarısız olursa güvenli bir yükseklik kullan
                 card.configure(width=min_w, height=200)
@@ -42,11 +48,12 @@ class SettingsFrame(tk.Frame):
         tk.Label(name_inner, text="Okul Adı (Rapor Başlığı)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
-        self.entry_school = tk.Entry(row_name, width=40)
-        self.entry_school.pack(side='left', padx=(0, 8))
-        tk.Button(row_name, text="Kaydet", command=self.save).pack(side='left')
+        self.entry_school = ttk.Entry(row_name, width=40)
+        # Metin kutusu ile buton arasını açmak için boşlukları artır
+        self.entry_school.pack(side='left', padx=(0, 12))
+        tk.Button(row_name, text="Kaydet", command=self.save).pack(side='right', padx=(12, 0))
         # Kart yüksekliğini içeriğe göre ayarla (Kaydet butonu görünür kalsın)
-        _autosize_card(name_card, name_inner, min_w=560, pad=12)
+        _autosize_card(name_card, name_inner, min_w=560, pad=12, min_h=180)
         name_card.pack_propagate(False)
 
         # === Theme Card ===
@@ -59,8 +66,24 @@ class SettingsFrame(tk.Frame):
         tk.Label(theme_inner, text="Tema", font=("Arial", 12, "bold"), bg=tint_theme).pack(anchor='center')
         self.var_dark = tk.BooleanVar(value=False)
         tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme).pack(anchor='center', pady=(6, 0))
-        _autosize_card(theme_card, theme_inner, min_w=560, pad=12)
+        _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
+
+        # === Scale Card ===
+        scale_holder = tk.Frame(self)
+        scale_holder.pack(fill='x', padx=20, pady=(4, 8))
+        scale_card, scale_inner = rounded_outline(scale_holder, radius=12, padding=12, border='#888')
+        scale_card.pack(anchor='center', fill='x')
+        tint_scale = smart_tinted_bg(self)
+        scale_inner.configure(bg=tint_scale)
+        tk.Label(scale_inner, text="Yazı Boyutu", font=("Arial", 12, "bold"), bg=tint_scale).pack(anchor='center')
+        self.var_scale = tk.StringVar(value='2.0')
+        radios = tk.Frame(scale_inner, bg=tint_scale)
+        radios.pack(pady=(6, 0))
+        for label, val in (("1x", '1.0'), ("1.5x", '1.5'), ("2x", '2.0')):
+            tk.Radiobutton(radios, text=label, variable=self.var_scale, value=val, command=self.on_scale_change, bg=tint_scale).pack(side='left', padx=8)
+        _autosize_card(scale_card, scale_inner, min_w=560, pad=12, min_h=160)
+        scale_card.pack_propagate(False)
 
         # DB utils
         # DB card centered and compact (just fits 3 buttons)
@@ -79,7 +102,7 @@ class SettingsFrame(tk.Frame):
         # Restart button (hidden until reset)
         self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden Başlat", command=self.restart_app)
 
-        _autosize_card(db_card, db_inner, min_w=560, pad=12)
+        _autosize_card(db_card, db_inner, min_w=560, pad=12, min_h=180)
         db_card.pack_propagate(False)
         self.status_var = tk.StringVar(value="")
         tk.Label(self, textvariable=self.status_var, fg="#444").pack(fill='x', padx=20, pady=(4, 0))
@@ -123,6 +146,17 @@ class SettingsFrame(tk.Frame):
         r_theme = cur.fetchone()
         conn.close()
         self.var_dark.set(bool(r_theme and (str(r_theme[0]).lower() == 'dark')))
+        # scale value
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM settings WHERE key='ui_scale'")
+            r_scale = cur.fetchone()
+            conn.close()
+            if hasattr(self, 'var_scale'):
+                self.var_scale.set(str(r_scale[0]) if r_scale and r_scale[0] else '2.0')
+        except Exception:
+            pass
 
     def save(self) -> None:
         # Only save the school name
@@ -156,7 +190,11 @@ class SettingsFrame(tk.Frame):
             pass
         # Apply immediately
         try:
-            apply_theme(self.controller, scale=2.0, theme_name=theme_key)
+            try:
+                scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else 2.0
+            except Exception:
+                scale_val = 2.0
+            apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
         except Exception:
@@ -169,6 +207,36 @@ class SettingsFrame(tk.Frame):
 
     def _init_theme_list(self) -> None:
         pass
+
+    def on_scale_change(self) -> None:
+        # Persist and apply scaling when radio changes
+        try:
+            scale_val = float(self.var_scale.get())
+        except Exception:
+            scale_val = 2.0
+        # Save
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            cur.execute(
+                "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                ('ui_scale', str(scale_val)),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+        # Apply immediately with current theme and update min window size
+        try:
+            theme_key = 'dark' if self.var_dark.get() else 'light'
+            apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
+            if hasattr(self.controller, 'refresh_theme'):
+                self.controller.refresh_theme()
+            if hasattr(self.controller, 'set_min_window_for_scale'):
+                self.controller.set_min_window_for_scale(scale_val)
+        except Exception:
+            pass
 
     # --- DB Utils ---
     def backup_db(self) -> None:

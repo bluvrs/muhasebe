@@ -264,8 +264,7 @@ class LedgerFrame(tk.Frame):
             pass
 
     def add_entry(self) -> None:
-        typ_disp = (self.combo_type.get().strip() or "GELİR").lower()
-        db_type = 'gelir' if typ_disp.startswith('gel') else 'gider'
+        db_type = self._current_db_type()
         date = self.entry_date.get().strip()
         amount = self._parse_amount(self.entry_amount.get().strip())
         desc = self.entry_desc.get().strip() or None
@@ -291,8 +290,7 @@ class LedgerFrame(tk.Frame):
         if lid is None:
             messagebox.showinfo("Seçim yok", "Güncellenecek kaydı seçin.")
             return
-        typ_disp = (self.combo_type.get().strip() or "gelir").lower()
-        db_type = 'gelir' if typ_disp.startswith('gel') else 'gider'
+        db_type = self._current_db_type()
         date = self.entry_date.get().strip()
         amount = self._parse_amount(self.entry_amount.get().strip())
         desc = self.entry_desc.get().strip() or None
@@ -349,3 +347,4 @@ class LedgerFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh()
+
