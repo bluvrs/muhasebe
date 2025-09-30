@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
-from ui import apply_theme, create_menu_button, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins
+from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action
 import sqlite3 as _sqlite3
 from typing import Tuple
 try:
@@ -190,16 +190,25 @@ class App(tk.Tk):
         self.minsize(800, 600)
         # Start maximized when the app launches
         self._maximize_startup()
-        # Apply global UI theme for readability (use saved settings)
+        # Apply font scaling only (no tk scaling), then theme
         try:
             scale, theme = self._load_ui_settings()
-            apply_theme(self, scale=scale, theme_name=theme)
+            # Default to light theme if not set
+            if not theme:
+                theme = 'light'
             try:
-                self.ui_scale = float(scale)
+                s = float(scale)
+                if s <= 0:
+                    s = 1.0
             except Exception:
-                self.ui_scale = 1.5
+                s = 1.0
+            apply_theme(self, scale=s, theme_name=theme)
+            try:
+                self.ui_scale = float(s)
+            except Exception:
+                self.ui_scale = 1.0
             # remember user preference
-            self.saved_scale = self.ui_scale
+            self.saved_scale = float(self.ui_scale)
             self.saved_theme = theme
             try:
                 self.set_min_window_for_scale(self.ui_scale)
@@ -237,16 +246,23 @@ class App(tk.Tk):
         self.show_frame(LoginFrame)
 
     def show_frame(self, frame_class: Type[tk.Frame], **kwargs) -> None:
-        # Ensure 2x scaling on Login; otherwise use saved scale from settings
+        # Ensure bigger fonts on Login (2.0x); otherwise use saved
         try:
             desired_scale = 2.0 if frame_class.__name__ == 'LoginFrame' else getattr(self, 'saved_scale', None)
-            desired_theme = getattr(self, 'saved_theme', None)
+            desired_theme = getattr(self, 'saved_theme', None) or 'light'
             if desired_scale is not None:
-                apply_theme(self, scale=desired_scale, theme_name=desired_theme)
                 try:
-                    self.ui_scale = float(desired_scale)
+                    s = float(desired_scale)
+                    if s <= 0:
+                        s = 1.0
+                except Exception:
+                    s = 1.0
+                apply_theme(self, scale=s, theme_name=desired_theme)
+                try:
+                    self.ui_scale = float(s)
                     if hasattr(self, 'set_min_window_for_scale'):
-                        self.set_min_window_for_scale(self.ui_scale)
+                        # Keep window min size independent from font scale
+                        self.set_min_window_for_scale(1.0)
                 except Exception:
                     pass
         except Exception:
@@ -291,6 +307,8 @@ class App(tk.Tk):
             # Load scale if available
             try:
                 scale = float(rows.get('ui_scale') or 1.5)
+                if scale <= 0:
+                    scale = 1.5
             except Exception:
                 scale = 1.5
             theme = None
@@ -441,10 +459,41 @@ class RoleFrame(tk.Frame):
     ) -> None:
         super().__init__(parent)
         self.controller = controller
-        self.user_label = tk.Label(self, text="")
-
-        tk.Label(self, text=title, font=("Arial", 16, "bold")).pack(pady=(20, 10))
-        self.user_label.pack()
+        # Title
+        tk.Label(self, text=title, font=("Arial", 16, "bold")).pack(pady=(20, 6))
+        # Centered user card with rounded outline
+        user_holder = tk.Frame(self)
+        user_holder.pack(pady=(0, 10), anchor='n')
+        card, inner = rounded_outline(user_holder, radius=12, padding=10, border='#888')
+        card.pack(anchor='center')
+        try:
+            tint = smart_tinted_bg(self)
+            inner.configure(bg=tint)
+        except Exception:
+            pass
+        # Set a comfortable width for the card
+        try:
+            card.configure(width=520, height=64)
+            card.pack_propagate(False)
+        except Exception:
+            pass
+        # Row inside the card: username label (left) + logout button (right)
+        header_row = tk.Frame(inner, bg=inner.cget('bg'))
+        header_row.pack(fill='x')
+        self.user_label = tk.Label(header_row, text="", bg=inner.cget('bg'))
+        self.user_label.pack(side='left', padx=12, pady=6)
+        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Menu.TButton')
+        try:
+            # Slightly smaller font than menu buttons if available
+            import tkinter.font as tkfont
+            base = 14
+            scale = getattr(self.controller, 'ui_scale', 1.5)
+            sz = max(10, int(round(base * float(scale))))
+            logout_font = tkfont.Font(name=f"LogoutFont_{id(self)}", family='Arial', size=sz, weight='bold')
+            logout_btn.configure(font=logout_font)
+        except Exception:
+            pass
+        logout_btn.pack(side='right', padx=12, pady=6)
 
         if description:
             tk.Label(self, text=description, wraplength=360, justify="center").pack(pady=20)
@@ -454,14 +503,45 @@ class RoleFrame(tk.Frame):
             self.grid_frame = tk.Frame(self)
             self.grid_frame.pack(padx=16, pady=10, fill='both', expand=True)
 
-            self._buttons: List[tk.Button] = []
+            self._buttons: List[tk.Widget] = []
+            # Scaled menu font tied to UI scale
+            try:
+                import tkinter.font as tkfont
+                base_size = 36
+                scale = getattr(controller, 'ui_scale', 1.5)
+                size = max(14, int(round(base_size * float(scale) )))
+               
+                self._menu_font = tkfont.Font(name=f"RoleMenuFont_{id(self)}", family='Arial', size=size , weight='bold')
+            except Exception:
+                self._menu_font = None
             for action in actions:
                 handler = None
                 if action_handlers:
                     handler = action_handlers.get(action)
                 if handler is None:
                     handler = lambda name=action: controller.show_placeholder(name)
-                btn = create_menu_button(self.grid_frame, action, handler)
+                # Use ttk with a custom style that enforces bg (#1e2023) in light theme
+                # Button text with emoji icon on top + label below
+                try:
+                    icon, short = _icon_for_action(str(action))  # type: ignore[attr-defined]
+                    btn_text = f"{icon}\n\n{short}"
+                except Exception:
+                    btn_text = str(action)
+                btn = ttk.Button(
+                    self.grid_frame,
+                    text=btn_text,
+                    command=handler,
+                    style='Menu.TButton',
+                )
+                try:
+                    if getattr(self, '_menu_font', None) is not None:
+                        btn.configure(font=self._menu_font)
+                except Exception:
+                    pass
+                try:
+                    btn.configure(width=22, padding=(30, 28), justify='center', anchor='center')
+                except Exception:
+                    pass
                 self._buttons.append(btn)
 
             self._current_cols = 0
@@ -507,7 +587,28 @@ class RoleFrame(tk.Frame):
             self.after(0, _on_resize)
             self.bind('<Configure>', _on_resize)
 
-        tk.Button(self, text="Çıkış yap", command=self.controller.logout).pack(pady=30)
+        # Removed bottom-placed logout; now shown next to username
+
+    def on_theme_changed(self) -> None:
+        # Re-apply fonts when UI scale or theme changes
+        try:
+            import tkinter.font as tkfont
+            base_size = 36
+            scale = getattr(self.controller, 'ui_scale', 1.5)
+            size = max(14, int(round(base_size * float(scale))))
+            if hasattr(self, '_menu_font') and isinstance(self._menu_font, tkfont.Font):
+                self._menu_font.configure(size=size)
+            for btn in getattr(self, '_buttons', []):
+                try:
+                    if hasattr(self, '_menu_font') and self._menu_font:
+                        btn.configure(font=self._menu_font)
+                    # Ensure ttk style remains and layout stays centered
+                    if isinstance(btn, ttk.Button):
+                        btn.configure(style='Menu.TButton', padding=(30, 28), justify='center', anchor='center', width=22)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def on_show(self, username: str, role: str) -> None:
         self.user_label.config(text="Signed in as {} ({})".format(username, role))
@@ -656,13 +757,7 @@ class ManagerFrame(RoleFrame):
             handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
         else:
             handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
-        # Ensure Investors menu opens even with encoding/import issues (manager)
-        try:
-            for _k in list(actions):
-                if isinstance(_k, str) and 'yat' in _k.lower():
-                    handlers[_k] = _open_investors
-        except Exception:
-            pass
+       
 
         if ReportsFrame is not None:
             handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
@@ -679,9 +774,3 @@ if __name__ == "__main__":
     init_db()
     app = App()
     app.mainloop()
-
-
-
-
-
-
