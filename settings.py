@@ -199,13 +199,20 @@ class SettingsFrame(tk.Frame):
                 self.controller.refresh_theme()
         except Exception:
             pass
-        # Offer restart (uses existing method that asks for confirmation)
+        # Runtime apply; no restart needed
         try:
-            self.restart_app()
+            self.controller.saved_theme = theme_key
+            try:
+                self.controller.saved_scale = float(scale_val)
+                self.controller.ui_scale = float(scale_val)
+            except Exception:
+                pass
         except Exception:
             pass
-
-    def _init_theme_list(self) -> None:
+        try:
+            self.status_var.set("Tema uygulandý.")
+        except Exception:
+            pass    def _init_theme_list(self) -> None:
         pass
 
     def on_scale_change(self) -> None:
@@ -235,6 +242,12 @@ class SettingsFrame(tk.Frame):
                 self.controller.refresh_theme()
             if hasattr(self.controller, 'set_min_window_for_scale'):
                 self.controller.set_min_window_for_scale(scale_val)
+        except Exception:
+            pass
+        try:
+            self.controller.saved_scale = float(scale_val)
+            self.controller.ui_scale = float(scale_val)
+            self.status_var.set(f"Yazý boyutu uygulandý: {scale_val}x")
         except Exception:
             pass
 
@@ -286,10 +299,31 @@ class SettingsFrame(tk.Frame):
             messagebox.showerror("SÄ±fÄ±rlama HatasÄ±", str(e))
 
     def restart_app(self) -> None:
-        if not messagebox.askyesno("Yeniden BaÅŸlat", "Uygulama yeniden baÅŸlatÄ±lsÄ±n mÄ±?"):
+        if not messagebox.askyesno("Yeniden Baþlat", "Uygulama yeniden baþlatýlsýn mý?"):
+            return
+        import subprocess, time
+        try:
+            exe = sys.executable
+            args = [exe] + list(sys.argv) if exe else None
+            if exe and args:
+                subprocess.Popen(args, close_fds=True)
+            else:
+                # Fallbacks
+                try:
+                    subprocess.Popen(["python", *sys.argv], close_fds=True)
+                except Exception:
+                    try:
+                        os.startfile(sys.argv[0])
+                    except Exception as _e:
+                        messagebox.showerror("Yeniden Baþlatma Hatasý", str(_e))
+                        return
+        except Exception as e:
+            messagebox.showerror("Yeniden Baþlatma Hatasý", str(e))
             return
         try:
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-        except Exception as e:
-            messagebox.showerror("Yeniden BaÅŸlatma HatasÄ±", str(e))
+            self.controller.destroy()
+        except Exception:
+            pass
+        os._exit(0)
+
+

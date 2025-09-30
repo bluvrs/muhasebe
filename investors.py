@@ -40,8 +40,8 @@ class InvestorsFrame(tk.Frame):
         nb.pack(fill='both', expand=True)
         tab_list = tk.Frame(nb)
         tab_tx = tk.Frame(nb)
-        nb.add(tab_list, text='Yatýrýmcýlar')
-        nb.add(tab_tx, text='Yatýrýmcý Ýþlemleri')
+        nb.add(tab_list, text='YatÄ±rÄ±mcÄ±lar')
+        nb.add(tab_tx, text='YatÄ±rÄ±mcÄ± Ä°ÅŸlemleri')
 
         # List
         columns = ("id", "name", "phone", "initial_capital", "current_capital", "pool_share_%", "shop_share_%", "initial_date")
@@ -109,11 +109,11 @@ class InvestorsFrame(tk.Frame):
         tk.Button(btns, text="Sil", command=self.delete_investor).pack(side="left")
 
         # Transactions section
-        sep = ttk.Separator(tab_tx), orient="horizontal")
+        sep = ttk.Separator(tab_tx, orient="horizontal")
         sep.pack(fill="x", padx=20, pady=(6, 6))
 
-        tk.Label(tab_tx, text="Yatýrýmcý Ýþlemleri", font=("Arial", 12, "bold")).pack(anchor="w", padx=20)
-        tx_form = tk.Frame(tab_list)
+        tk.Label(tab_tx, text="YatÄ±rÄ±mcÄ± Ä°ÅŸlemleri", font=("Arial", 12, "bold")).pack(anchor="w", padx=20)
+        tx_form = tk.Frame(tab_tx)
         tx_form.pack(fill="x", padx=20)
         tk.Label(tx_form, text="Tarih").grid(row=0, column=0, sticky="w")
         if _DateEntry is not None:
@@ -133,7 +133,7 @@ class InvestorsFrame(tk.Frame):
         self.tx_notes.grid(row=0, column=5, sticky="ew", padx=(6, 20))
         tx_form.columnconfigure(5, weight=1)
 
-        tx_btns = tk.Frame(tab_list)
+        tx_btns = tk.Frame(tab_tx)
         tx_btns.pack(fill="x", padx=20, pady=(6, 6))
         tk.Button(tx_btns, text="Katki Ekle", command=lambda: self.add_tx('contribution')).pack(side="left")
         tk.Button(tx_btns, text="Cekim Ekle", command=lambda: self.add_tx('withdrawal')).pack(side="left", padx=(8, 0))
@@ -471,4 +471,5 @@ class InvestorsFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh()
+
 
