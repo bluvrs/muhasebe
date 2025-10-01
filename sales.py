@@ -129,11 +129,35 @@ class SalesFrame(tk.Frame):
         status = tk.Label(self, textvariable=self.status_var, fg="#444")
         status.pack(fill="x", padx=20, pady=(0, 6))
 
-        # Suggestions (typeahead)
+        # Suggestions (typeahead) as dropdown under the search entry
         self._suggest_results = []  # list of (id, name, barcode, price, stock, unit)
-        self.suggest = tk.Listbox(self, height=6, activestyle='dotbox', exportselection=False)
-        # hidden by default; will be packed under the search bar when needed
+        self._suggest_win = tk.Toplevel(self)
+        self._suggest_win.withdraw()
+        try:
+            self._suggest_win.overrideredirect(True)
+        except Exception:
+            pass
+        try:
+            self._suggest_win.transient(self.winfo_toplevel())
+        except Exception:
+            pass
+        # container with listbox + scrollbar
+        self._suggest_container = tk.Frame(self._suggest_win)
+        self._suggest_container.pack(fill='both', expand=True)
+        self.suggest = tk.Listbox(self._suggest_container, height=6, activestyle='dotbox', exportselection=False)
+        self.suggest.pack(side='left', fill='both', expand=True)
+        self._suggest_scroll = ttk.Scrollbar(self._suggest_container, orient='vertical', command=self.suggest.yview)
+        self._suggest_scroll.pack(side='right', fill='y')
+        self.suggest.configure(yscrollcommand=self._suggest_scroll.set)
         self._suggest_visible = False
+        # Global binds: click outside closes; window move keeps position; periodic guard
+        try:
+            self._root = self.winfo_toplevel()
+            self._root.bind_all('<Button-1>', self._on_global_click, add=True)
+            self._root.bind('<Configure>', lambda _e: (self._suggest_visible and self._position_suggest_popup()))
+        except Exception:
+            self._root = None
+        self.after(300, self._guard_suggest_visibility)
         # Keep a fast barcode scan buffer
         self._scan_buf = ""
         self._scan_last_ts = 0.0
@@ -142,12 +166,20 @@ class SalesFrame(tk.Frame):
         # Bind enter to add item and key events for suggestions
         self.entry_scan.bind("<Return>", lambda _e: self.add_to_cart())
         self.entry_scan.bind("<KeyRelease>", self._on_scan_key)
-        # Prevent focus stealing on Down; keep entry ready for barcode scanner
-        self.entry_scan.bind("<Down>", lambda _e: "break")
+        # Down arrow focuses the suggestion dropdown
+        self.entry_scan.bind("<Down>", self._focus_suggest)
+        # Hide dropdown when entry loses focus (unless it moves into the dropdown)
+        self.entry_scan.bind("<FocusOut>", self._on_entry_focus_out)
+        # Hide when suggestions lose focus to elsewhere
+        self.suggest.bind("<FocusOut>", self._on_suggest_focus_out)
+        # Also hide when this frame is hidden or destroyed (navigating screens)
+        self.bind("<Unmap>", lambda _e: self._hide_suggest())
+        self.bind("<Destroy>", lambda _e: self._hide_suggest())
         # Capture keypress to detect fast barcode scans
         self.entry_scan.bind("<KeyPress>", self._scan_keypress, add=True)
         self.suggest.bind("<Return>", self._choose_suggest)
         self.suggest.bind("<Double-1>", self._choose_suggest)
+        self.suggest.bind("<ButtonRelease-1>", self._click_suggest)
         self.suggest.bind("<Escape>", lambda _e: self._hide_suggest())
         self.suggest.bind("<Up>", self._suggest_up)
         self.entry_qty.bind("<Return>", lambda _e: self.add_to_cart())
@@ -262,15 +294,24 @@ class SalesFrame(tk.Frame):
                 left += f" ({barcode})"
             right = f" {float(price):.2f}"
             self.suggest.insert(tk.END, left + right)
+        # Position and show dropdown under the entry
+        try:
+            self._suggest_win.update_idletasks()
+        except Exception:
+            pass
+        self._position_suggest_popup()
         if not self._suggest_visible:
-            # pack suggestions under search bar
-            self.suggest.pack(fill='x', padx=20, pady=(0, 6))
+            try:
+                self._suggest_win.deiconify()
+                self._suggest_win.lift()
+            except Exception:
+                pass
             self._suggest_visible = True
 
     def _hide_suggest(self) -> None:
         if self._suggest_visible:
             try:
-                self.suggest.pack_forget()
+                self._suggest_win.withdraw()
             except Exception:
                 pass
             self._suggest_visible = False
@@ -283,6 +324,89 @@ class SalesFrame(tk.Frame):
             self.suggest.activate(0)
             return "break"
         return "break"
+
+    def _on_entry_focus_out(self, _e=None):
+        # Delay a tick to allow focus to move into the suggestion popup
+        def _later():
+            try:
+                cur = self.focus_get()
+                if cur and (cur == self.suggest or cur.winfo_toplevel() == self._suggest_win):
+                    return
+            except Exception:
+                pass
+            self._hide_suggest()
+        try:
+            self.after(1, _later)
+        except Exception:
+            _later()
+
+    def _on_suggest_focus_out(self, _e=None):
+        try:
+            cur = self.focus_get()
+            if cur and (cur == self.entry_scan or cur.winfo_toplevel() == self._suggest_win):
+                return
+        except Exception:
+            pass
+        self._hide_suggest()
+
+    def _click_suggest(self, _e=None):
+        # On single-click, accept the highlighted item
+        return self._choose_suggest(_e)
+
+    def _on_global_click(self, e=None):
+        try:
+            w = getattr(e, 'widget', None)
+            # If click is inside the entry or inside the suggestion popup, ignore
+            if w is self.entry_scan:
+                return
+            if w is not None:
+                try:
+                    if w.winfo_toplevel() == self._suggest_win:
+                        return
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        self._hide_suggest()
+
+    def _guard_suggest_visibility(self):
+        try:
+            if self._suggest_visible:
+                # Hide if screen or entry is not viewable (e.g., navigated away)
+                if not self.winfo_viewable() or not self.entry_scan.winfo_viewable():
+                    self._hide_suggest()
+        except Exception:
+            pass
+        # keep guarding
+        try:
+            self.after(300, self._guard_suggest_visibility)
+        except Exception:
+            pass
+
+    def _position_suggest_popup(self) -> None:
+        try:
+            # Position the suggestion popup just under the search entry
+            ex = self.entry_scan.winfo_rootx()
+            ey = self.entry_scan.winfo_rooty()
+            ew = self.entry_scan.winfo_width()
+            eh = self.entry_scan.winfo_height()
+            x = ex
+            y = ey + eh + 2  # small gap
+            # Compute desired height based on item count (up to 8 rows)
+            rows = self.suggest.size()
+            rows = 1 if rows <= 0 else rows
+            rows = rows if rows <= 8 else 8
+            # Row height from bbox of first item; fallback to ~18px
+            try:
+                lh = self.suggest.bbox(0)[3]
+            except Exception:
+                lh = 18
+            h = rows * lh + 4
+            # Minimum width to look nice
+            w = max(ew, 240)
+            self._suggest_win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
 
     def _suggest_up(self, _e=None) -> str:
         try:
@@ -518,11 +642,15 @@ class ReturnFrame(tk.Frame):
         ttk.Button(sb, text="Ekle", command=self.add_to_cart).pack(side="left")
         ttk.Button(sb, text="Sepeti Temizle", command=self.clear_cart).pack(side="left", padx=(8, 0))
 
-        # Past purchases list
-        purchases_frame = tk.Frame(self)
-        purchases_frame.pack(fill='x', padx=20, pady=(6, 0))
-        tk.Label(purchases_frame, text="Geçmiş Satışlar", font=("Arial", 12, "bold")).pack(anchor='w')
-        self.purchases = ttk.Treeview(purchases_frame, columns=("sale_id","date","name","qty","returned","remaining","price"), show='headings', height=10)
+        # Middle: side-by-side panes (left: Son Satışlar, right: İade Sepeti)
+        middle = tk.Frame(self)
+        middle.pack(fill='both', expand=True, padx=20, pady=(6, 0))
+
+        # Left pane: Son Satışlar
+        left_pane = tk.Frame(middle)
+        left_pane.pack(side='left', fill='both', expand=True)
+        tk.Label(left_pane, text="Son Satışlar", font=("Arial", 12, "bold")).pack(anchor='w')
+        self.purchases = ttk.Treeview(left_pane, columns=("sale_id","date","name","qty","returned","remaining","price"), show='headings', height=14)
         for col, lbl, w, anc in (
             ("sale_id","Satış #",80,"center"),
             ("date","Tarih",140,"w"),
@@ -534,12 +662,15 @@ class ReturnFrame(tk.Frame):
         ):
             self.purchases.heading(col, text=lbl)
             self.purchases.column(col, width=w, anchor=anc)
-        self.purchases.pack(fill='x')
+        self.purchases.pack(fill='both', expand=True)
         self.purchases.bind('<Double-1>', self._on_purchase_dblclick)
 
-        # Cart
+        # Right pane: İade Sepeti
+        right_pane = tk.Frame(middle)
+        right_pane.pack(side='left', fill='both', expand=True, padx=(12,0))
+        tk.Label(right_pane, text="İade Sepeti", font=("Arial", 12, "bold")).pack(anchor='w')
         columns = ("product_id", "name", "barcode", "price", "qty", "total")
-        self.cart = ttk.Treeview(self, columns=columns, show="headings", height=6)
+        self.cart = ttk.Treeview(right_pane, columns=columns, show="headings", height=14)
         for col, lbl, w, anc in (
             ("product_id", "PID", 60, "center"),
             ("name", "İsim", 240, "w"),
@@ -550,12 +681,19 @@ class ReturnFrame(tk.Frame):
         ):
             self.cart.heading(col, text=lbl)
             self.cart.column(col, width=w, anchor=anc)
-        self.cart.pack(fill="both", expand=True, padx=20, pady=(8, 8))
+        self.cart.pack(fill='both', expand=True)
 
-        # Totals + actions
-        bottom = tk.Frame(self)
-        # Anchor actions bar to the bottom so it stays visible
-        bottom.pack(side='bottom', fill="x", padx=20, pady=(0, 10))
+        # Totals + actions (wrapped in a fixed-height bottom container)
+        bottom_wrap = tk.Frame(self)
+        bottom_wrap.pack(side='bottom', fill='x')
+        try:
+            bottom_wrap.configure(height=126)
+            bottom_wrap.pack_propagate(False)
+        except Exception:
+            pass
+        # Main bottom content (totals + payment)
+        bottom = tk.Frame(bottom_wrap)
+        bottom.pack(side='top', fill="x", padx=20, pady=(0, 6))
         left_box = tk.Frame(bottom)
         left_box.pack(side='left')
         tk.Label(left_box, text="Tarih:").pack(side="left")
@@ -587,15 +725,52 @@ class ReturnFrame(tk.Frame):
         btnr = ttk.Button(pay_box, text="İadeyi Tamamla", command=self.complete_return)
         btnr.pack(side='left', padx=(6,8), pady=6)
         btnr.pack_configure(ipadx=24, ipady=6)
+        # Rebuild date area to match sales screen (outlined box + small Şimdi button)
+        try:
+            for w in left_box.winfo_children():
+                w.pack_forget()
+        except Exception:
+            pass
+        base_font = tkfont.nametofont("TkDefaultFont")
+        small_size = int(base_font.actual("size") * 0.8)
+        small_font = (base_font.actual("family"), small_size)
+        date_outline = tk.Frame(left_box, bd=1, relief="solid", padx=4, pady=4)
+        date_outline.pack(side="left", padx=(6, 20), pady=8)
+        date_frame = tk.Frame(date_outline)
+        date_frame.pack()
+        tk.Label(date_frame, text="Tarih:", font=small_font).pack(anchor="center", pady=2)
+        if _DateEntry is not None:
+            self.entry_date = _DateEntry(date_frame, date_pattern="yyyy-mm-dd", state="readonly", font=small_font)
+            try:
+                self.entry_date.set_date(date.today())
+            except Exception:
+                pass
+        else:
+            self.entry_date = tk.Entry(date_frame, width=20, font=small_font)
+        self.entry_date.pack(anchor="center", pady=2)
+        ttk.Button(date_frame, text="Şimdi", command=self._set_now).pack(anchor="center", pady=2)
+        # small font style for the button (ttk style)
+        try:
+            style = ttk.Style()
+            style.configure("Small.TButton", font=small_font)
+            for _w in date_frame.winfo_children():
+                if isinstance(_w, ttk.Button):
+                    _w.configure(style="Small.TButton")
+        except Exception:
+            pass
+        total_frame = tk.Frame(left_box)
+        total_frame.pack(side="left", anchor="center")
+        tk.Label(total_frame, text="İade Tutarı:").pack(side="left", anchor="center")
+        tk.Label(total_frame, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20), anchor="center")
         # Track user edits on paid field for return flow
         self._paid_user_edited = False
         self._last_auto_paid = ''
         self.entry_paid.bind('<Key>', lambda _e: self._mark_paid_edited())
 
-        # Status label
+        # Status label inside bottom wrapper so it never gets pushed off-screen
         self.status_var = tk.StringVar(value="")
-        status = tk.Label(self, textvariable=self.status_var, fg="#444")
-        status.pack(fill="x", padx=20, pady=(0, 6))
+        status = tk.Label(bottom_wrap, textvariable=self.status_var, fg="#444")
+        status.pack(side='bottom', fill="x", padx=20, pady=(0, 4))
 
         # Binds
         self.entry_scan.bind("<Return>", lambda _e: self._list_sales_for_product())
