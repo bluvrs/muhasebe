@@ -50,7 +50,13 @@ def make_back_arrow(parent: tk.Misc, command) -> tk.Canvas:
 
     c.bind('<Enter>', _on_enter)
     c.bind('<Leave>', _on_leave)
-    c.bind('<Button-1>', lambda _e: command())
+    def _on_click(_e=None):
+        try:
+            if callable(command):
+                command()
+        except Exception:
+            pass
+    c.bind('<Button-1>', _on_click)
     c.configure(cursor='hand2')
     return c
 

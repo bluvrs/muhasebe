@@ -582,8 +582,11 @@ class MenuTile(tk.Label):
         self.configure(bg=self._default_bg)
 
     def _on_click(self, event=None):
-        if self._command:
-            self._command()
+        try:
+            if callable(self._command):
+                self._command()
+        except Exception:
+            pass
 
     def refresh_style(self, scale: float = 1.0):
         # Try to get theme from controller if available
@@ -667,8 +670,12 @@ class RoleFrame(tk.Frame):
             for action in actions:
                 handler = None
                 if action_handlers:
-                    handler = action_handlers.get(action)
-                if handler is None:
+                    try:
+                        handler = action_handlers.get(action)  # type: ignore[assignment]
+                    except Exception:
+                        handler = None
+                # Fallback to placeholder if handler missing or not callable
+                if (handler is None) or (not callable(handler)):
                     handler = lambda name=action: controller.show_placeholder(name)
                 try:
                     icon, short = _icon_for_action(str(action))  # type: ignore[attr-defined]

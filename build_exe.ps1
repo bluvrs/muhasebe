@@ -1,14 +1,23 @@
 # PowerShell build script to create a Windows EXE using PyInstaller
 # Usage:
 #   1) Open PowerShell in this folder
-#   2) Run:  ./build_exe.ps1
+#   2) Run:
+#        ./build_exe.ps1                   # auto-detect Python (keeps existing .venv)
+#        ./build_exe.ps1 -Arch x64         # force 64-bit build (uses .venv-x64)
+#        ./build_exe.ps1 -Arch x86         # force 32-bit build (uses .venv-x86)
+#        ./build_exe.ps1 -Icon app.ico     # custom icon
+#        ./build_exe.ps1 -OneDir           # folder output instead of onefile
+#        ./build_exe.ps1 -Arch x86 -Win7Compat   # build compatible for Windows 7 (32-bit)
 # Result:
 #   - One-file GUI exe at: dist/Muhasebe.exe
 
 param(
     [switch]$OneDir,   # build as folder instead of one-file
     [string]$Icon,     # optional .ico path (defaults to app.ico if exists)
-    [string]$PythonPath # optional full path to python.exe
+    [string]$PythonPath, # optional full path to python.exe
+    [ValidateSet('auto','x86','x64')]
+    [string]$Arch = 'auto', # target architecture; 'auto' uses whichever Python is selected
+    [switch]$Win7Compat     # prefer Python 3.8 and PyInstaller compatible with Windows 7
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,13 +49,33 @@ function Resolve-Python {
         }
     } catch { }
     # 3) Try PATH candidates (skip WindowsApps alias)
-    $candidates = @(
+    $candidates = @()
+    if ($Arch -eq 'x86') {
+        if ($Win7Compat) {
+            $candidates += @(@('py','-3.8-32'))
+        } else {
+            $candidates += @(@('py','-3.13-32'), @('py','-3-32'))
+        }
+    } elseif ($Arch -eq 'x64') {
+        if ($Win7Compat) {
+            $candidates += @(@('py','-3.8-64'))
+        } else {
+            $candidates += @(@('py','-3.13-64'), @('py','-3-64'))
+        }
+    }
+    # generic fallbacks regardless of Arch
+    $generic = @(
         @('py','-3.13'),  # prefer exact 3.13 if launcher exists
         @('python'),
         @('python3'),
         @('py','-3'),
         @('py')
     )
+    if ($Win7Compat) {
+        # push 3.8 to the front of generic fallbacks for Win7 builds
+        $candidates += @(@('py','-3.8'), @('py','-3.8-32'), @('py','-3.8-64'))
+    }
+    $candidates += $generic
     foreach ($cand in $candidates) {
         try {
             $pyArgs = @()
@@ -64,14 +93,57 @@ function Resolve-Python {
     return $false
 }
 
+function Get-PythonArch {
+    # Returns 'x86' or 'x64' for the selected launcher
+    $pre = @()
+    if ($Global:PythonLauncher -and $Global:PythonLauncher.Count -gt 1) {
+        $pre = $Global:PythonLauncher[1..($Global:PythonLauncher.Count-1)]
+    }
+    $code = "import struct; import sys; sys.stdout.write('x86' if struct.calcsize('P')*8==32 else 'x64')"
+    try {
+        $out = & $Global:PythonLauncher[0] @pre '-c' $code
+        if ($LASTEXITCODE -eq 0 -and ($out -in @('x86','x64'))) { return $out }
+    } catch { }
+    return 'unknown'
+}
+
+function Get-PythonVersionShort {
+    $pre = @()
+    if ($Global:PythonLauncher -and $Global:PythonLauncher.Count -gt 1) {
+        $pre = $Global:PythonLauncher[1..($Global:PythonLauncher.Count-1)]
+    }
+    $code = "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"
+    try {
+        $out = & $Global:PythonLauncher[0] @pre '-c' $code
+        if ($LASTEXITCODE -eq 0) { return $out.Trim() }
+    } catch { }
+    return 'unknown'
+}
+
+function Get-PythonExePath {
+    $pre = @()
+    if ($Global:PythonLauncher -and $Global:PythonLauncher.Count -gt 1) {
+        $pre = $Global:PythonLauncher[1..($Global:PythonLauncher.Count-1)]
+    }
+    $code = "import sys; print(sys.executable)"
+    try {
+        $out = & $Global:PythonLauncher[0] @pre '-c' $code
+        if ($LASTEXITCODE -eq 0) { return $out.Trim() }
+    } catch { }
+    return '<unknown>'
+}
+
 function Initialize-Venv {
-    if (-not (Test-Path ".venv")) {
-        Write-Host "[+] Creating virtual environment (.venv)" -ForegroundColor Cyan
+    param(
+        [string]$VenvDir
+    )
+    if (-not (Test-Path $VenvDir)) {
+        Write-Host "[+] Creating virtual environment ($VenvDir)" -ForegroundColor Cyan
         $pre = @()
         if ($Global:PythonLauncher -and $Global:PythonLauncher.Count -gt 1) {
             $pre = $Global:PythonLauncher[1..($Global:PythonLauncher.Count-1)]
         }
-        & $Global:PythonLauncher[0] @pre '-m' 'venv' '.venv'
+        & $Global:PythonLauncher[0] @pre '-m' 'venv' $VenvDir
     }
 }
 
@@ -85,14 +157,28 @@ function Test-Python {
 }
 
 function Install-Tools {
+    param(
+        [string]$VenvDir,
+        [switch]$Win7Compat
+    )
     Write-Host "[+] Installing/upgrading build tools" -ForegroundColor Cyan
-    .\.venv\Scripts\python -m pip install --upgrade pip
-    .\.venv\Scripts\python -m pip install --upgrade pyinstaller
+    $venvPy = Join-Path $VenvDir 'Scripts\python'
+    & $venvPy -m pip install --upgrade pip
+    if ($Win7Compat) {
+        Write-Host "[i] Pinning PyInstaller to 4.10 for Windows 7 compatibility" -ForegroundColor DarkCyan
+        & $venvPy -m pip install "pyinstaller==4.10"
+    } else {
+        & $venvPy -m pip install --upgrade pyinstaller
+    }
     # Optional dependency used in investors screen (collected if present)
-    try { .\.venv\Scripts\python -m pip show tkcalendar > $null 2>&1 } catch {}
+    try { & $venvPy -m pip show tkcalendar > $null 2>&1 } catch {}
 }
 
 function New-Exe {
+    param(
+        [string]$VenvDir,
+        [string]$BuildArch
+    )
     $name = 'Muhasebe'
     $commonArgs = @(
         '--noconfirm',
@@ -126,29 +212,69 @@ function New-Exe {
         $optMods = @('tkcalendar')
         foreach ($m in $optMods) {
             try {
-                & .\.venv\Scripts\python -c "import importlib,sys; sys.exit(0) if importlib.util.find_spec('$m') else sys.exit(1)" > $null 2>&1
+                $venvPy = Join-Path $VenvDir 'Scripts\python'
+                & $venvPy -c "import importlib,sys; sys.exit(0) if importlib.util.find_spec('$m') else sys.exit(1)" > $null 2>&1
                 if ($LASTEXITCODE -eq 0) { $commonArgs += @('--hidden-import', $m) }
             } catch {}
         }
     } catch {}
 
     if ($OneDir) {
-        Write-Host "[+] Building onedir app (folder)" -ForegroundColor Cyan
-        .\.venv\Scripts\python -m PyInstaller @commonArgs 'main.py'
+        Write-Host "[+] Building onedir app (folder) [$BuildArch]" -ForegroundColor Cyan
+        $venvPy = Join-Path $VenvDir 'Scripts\python'
+        & $venvPy -m PyInstaller @commonArgs 'main.py'
         Write-Host "[i] Output: dist\$name\$name.exe" -ForegroundColor Green
     } else {
-        Write-Host "[+] Building onefile app (single exe)" -ForegroundColor Cyan
-        .\.venv\Scripts\python -m PyInstaller @commonArgs '--onefile' 'main.py'
+        Write-Host "[+] Building onefile app (single exe) [$BuildArch]" -ForegroundColor Cyan
+        $venvPy = Join-Path $VenvDir 'Scripts\python'
+        & $venvPy -m PyInstaller @commonArgs '--onefile' 'main.py'
         Write-Host "[i] Output: dist\$name.exe" -ForegroundColor Green
     }
 }
 
 try {
     Test-Python
-    Initialize-Venv
-    & .\.venv\Scripts\python -m pip --version > $null 2>&1
-    Install-Tools
-    New-Exe @PSBoundParameters
+    # Verify bitness and choose venv directory
+    $detectedArch = Get-PythonArch
+    $detectedVer = Get-PythonVersionShort
+    $pyPath = Get-PythonExePath
+    if ($Arch -ne 'auto' -and $detectedArch -eq 'unknown') {
+        # Try to re-resolve with arch-preferred candidates if we couldn't detect
+        if (-not (Resolve-Python)) { throw "Python not found while resolving for requested architecture '$Arch'" }
+        $detectedArch = Get-PythonArch
+        $detectedVer = Get-PythonVersionShort
+        $pyPath = Get-PythonExePath
+    }
+    if ($Arch -ne 'auto' -and $detectedArch -ne 'unknown' -and $Arch -ne $detectedArch) {
+        Write-Host "[!] Requested Arch=$Arch but selected Python is $detectedArch. Trying harder to locate matching Python..." -ForegroundColor Yellow
+        # Try to re-resolve with tighter candidates
+        $tmpArch = $Arch; $Arch = $tmpArch  # ensure global is set for Resolve-Python to use arch-specific candidates
+        if (-not (Resolve-Python)) { throw "Python matching architecture '$tmpArch' not found. Install 32-bit or 64-bit Python accordingly." }
+        $detectedArch = Get-PythonArch
+        if ($detectedArch -ne $tmpArch) { throw "Resolved Python does not match requested architecture ($tmpArch)." }
+    }
+
+    if ($Win7Compat) {
+        if ($detectedVer -ne '3.8') {
+            throw "Win7Compat requires Python 3.8. Install Python 3.8 ($Arch) and re-run with -Win7Compat."
+        }
+    }
+
+    # Choose venv dir: keep legacy '.venv' for auto, arch-specific for forced builds
+    if ($Arch -eq 'auto') {
+        $VenvDir = '.venv'
+    } else {
+        $suffix = if ($detectedArch -in @('x86','x64')) { $detectedArch } else { $Arch }
+        $VenvDir = ".venv-$suffix"
+    }
+
+    Initialize-Venv -VenvDir $VenvDir
+    $venvPy = Join-Path $VenvDir 'Scripts\python'
+    & $venvPy -m pip --version > $null 2>&1
+    Install-Tools -VenvDir $VenvDir -Win7Compat:$Win7Compat
+    $buildArch = if ($detectedArch -ne 'unknown') { $detectedArch } else { $Arch }
+    Write-Host ("[i] Requested Arch={0}; Using Python={1} ({2})" -f $Arch,$detectedArch,$pyPath) -ForegroundColor DarkCyan
+    New-Exe -VenvDir $VenvDir -BuildArch $buildArch
     Write-Host '[OK] Build completed.' -ForegroundColor Green
 } catch {
     Write-Host "[x] Build failed: $($_.Exception.Message)" -ForegroundColor Red
