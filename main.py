@@ -535,7 +535,7 @@ class LoginFrame(tk.Frame):
 # --- MenuTile class definition ---
 class MenuTile(tk.Label):
     _default_fg = "white"
-    _base_size = 24
+    _base_size = 14
 
     def __init__(self, parent, icon, text, command, scale: float = 1.0, *args, **kwargs):
         display_text = f"{icon}\n\n{text}"
