@@ -4,7 +4,7 @@ from tkinter import messagebox, ttk
 import tkinter.font as tkfont
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
-from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action
+from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action, fix_mojibake_text
 import sqlite3 as _sqlite3
 from typing import Tuple
 try:
@@ -172,6 +172,10 @@ def init_db() -> None:
         )
         """
     )
+    # Seed default UI settings if missing
+    cursor.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('ui_theme','light')")
+    cursor.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('ui_scale','1.5')")
+    cursor.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('ui_base_pt','12')")
     # Default investor pool percent to 20 if not set
     cursor.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('investor_pool_percent','20')")
     cursor.execute("SELECT 1 FROM users WHERE username = ?", ("admin",))
@@ -216,7 +220,7 @@ class App(tk.Tk):
         self._maximize_startup()
         # Apply font scaling only (no tk scaling), then theme
         try:
-            scale, theme = self._load_ui_settings()
+            scale, theme, base_pt = self._load_ui_settings()
             # Default to light theme if not set
             if not theme:
                 theme = 'light'
@@ -226,7 +230,7 @@ class App(tk.Tk):
                     s = 1.0
             except Exception:
                 s = 1.0
-            apply_theme(self, scale=s, theme_name=theme)
+            apply_theme(self, scale=s, theme_name=theme, base_pt=base_pt)
             try:
                 self.ui_scale = float(s)
             except Exception:
@@ -234,6 +238,10 @@ class App(tk.Tk):
             # remember user preference
             self.saved_scale = float(self.ui_scale)
             self.saved_theme = theme
+            try:
+                self.saved_base_pt = int(base_pt) if base_pt else 12
+            except Exception:
+                self.saved_base_pt = 12
             try:
                 self.set_min_window_for_scale(self.ui_scale)
             except Exception:
@@ -244,6 +252,7 @@ class App(tk.Tk):
                 self.ui_scale = 1.5
                 self.saved_scale = 1.5
                 self.saved_theme = None
+                self.saved_base_pt = 12
                 try:
                     self.set_min_window_for_scale(self.ui_scale)
                 except Exception:
@@ -267,15 +276,102 @@ class App(tk.Tk):
             "uye": MemberFrame,
         }
 
+        # Normalize window title text if mojibake slipped in
+        try:
+            self.title(fix_mojibake_text(self.title()) or self.title())
+        except Exception:
+            pass
+        # Wrap messagebox functions so all messages are fixed at call-time
+        self._wrap_messagebox_mojibake_fix()
         self.show_frame(LoginFrame)
 
-    # Safety net: if any widget accidentally binds/assigns the App instance
-    # as a callback (e.g., command=self.controller), Tk will try to call the
-    # App object. Make it callable to avoid crashing; no-op with a warning.
-    def __call__(self, *args, **kwargs):  # type: ignore[override]
+    # IMPORTANT: Do not override Tk.__call__ — Tkinter relies on it to call
+    # underlying Tcl commands. Overriding it breaks internals and can surface
+    # confusing errors in callbacks. Instead, provide a dedicated helper that
+    # developers can bind to when they need a safe no-op callback target.
+    def safe_noop(self, *args, **kwargs):
         try:
             import sys
-            print("[warn] App object invoked as callback; ignoring.", file=sys.stderr)
+            print("[warn] safe_noop invoked; ignoring.", file=sys.stderr)
+        except Exception:
+            pass
+
+    # Centralized callback exception handler so Tkinter shows a clear error
+    # instead of failing with obscure AttributeErrors in some environments.
+    def report_callback_exception(self, exc, val, tb):  # type: ignore[override]
+        try:
+            import traceback, sys
+            traceback.print_exception(exc, val, tb)
+            try:
+                # Show a concise error message to the user
+                messagebox.showerror("Hata", f"Beklenmeyen hata: {exc.__name__}: {val}")
+            except Exception:
+                # Fallback to stderr if UI messagebox fails
+                print(f"[tk-error] {exc.__name__}: {val}", file=sys.stderr)
+        except Exception:
+            pass
+
+    def _wrap_messagebox_mojibake_fix(self) -> None:
+        try:
+            import tkinter.messagebox as _mb
+            def _wrap(fn):
+                def inner(title, message, *a, **kw):
+                    try:
+                        title2 = fix_mojibake_text(title)
+                        msg2 = fix_mojibake_text(message)
+                        return fn(title2, msg2, *a, **kw)
+                    except Exception:
+                        return fn(title, message, *a, **kw)
+                return inner
+            for name in ("showinfo","showwarning","showerror","askyesno","askokcancel","askquestion","askretrycancel","askyesnocancel"):
+                if hasattr(_mb, name):
+                    setattr(_mb, name, _wrap(getattr(_mb, name)))
+        except Exception:
+            pass
+
+    def _fix_texts_recursive(self, widget) -> None:
+        try:
+            # Fix classic Tk widgets with 'text' option
+            if hasattr(widget, 'cget') and 'text' in widget.keys():
+                try:
+                    txt = widget.cget('text')
+                    fixed = fix_mojibake_text(txt)
+                    if fixed != txt:
+                        widget.configure(text=fixed)
+                except Exception:
+                    pass
+            # Special cases: ttk.Notebook tab texts
+            try:
+                from tkinter import ttk as _ttk
+                if isinstance(widget, _ttk.Notebook):
+                    for i in range(widget.index('end') or 0):
+                        try:
+                            tabtxt = widget.tab(i, option='text')
+                            fixed = fix_mojibake_text(tabtxt)
+                            if fixed != tabtxt:
+                                widget.tab(i, text=fixed)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            # Special cases: ttk.Treeview headings
+            try:
+                from tkinter import ttk as _ttk
+                if isinstance(widget, _ttk.Treeview):
+                    cols = widget.cget('columns') or ()
+                    for c in cols:
+                        try:
+                            htxt = widget.heading(c, option='text')
+                            fixed = fix_mojibake_text(htxt)
+                            if fixed != htxt:
+                                widget.heading(c, text=fixed)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            # Recurse
+            for child in widget.winfo_children():
+                self._fix_texts_recursive(child)
         except Exception:
             pass
 
@@ -284,6 +380,7 @@ class App(tk.Tk):
         try:
             desired_scale = 2.0 if frame_class.__name__ == 'LoginFrame' else getattr(self, 'saved_scale', None)
             desired_theme = getattr(self, 'saved_theme', None) or 'light'
+            desired_base_pt = getattr(self, 'saved_base_pt', 12)
             if desired_scale is not None:
                 try:
                     s = float(desired_scale)
@@ -291,7 +388,7 @@ class App(tk.Tk):
                         s = 1.0
                 except Exception:
                     s = 1.0
-                apply_theme(self, scale=s, theme_name=desired_theme)
+                apply_theme(self, scale=s, theme_name=desired_theme, base_pt=desired_base_pt)
                 try:
                     self.ui_scale = float(s)
                     if hasattr(self, 'set_min_window_for_scale'):
@@ -321,6 +418,12 @@ class App(tk.Tk):
                 apply_button_margins(frame, padx=12, pady=12)
         except Exception:
             pass
+        # After the frame is shown, fix any mojibake text in its subtree and window title
+        try:
+            self._fix_texts_recursive(frame)
+            self.title(fix_mojibake_text(self.title()) or self.title())
+        except Exception:
+            pass
 
     def _maximize_startup(self) -> None:
         # Try native maximize first (works on Windows/Linux)
@@ -335,7 +438,7 @@ class App(tk.Tk):
             conn = _sqlite3.connect(DB_NAME)
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-            cur.execute("SELECT key, value FROM settings WHERE key IN ('ui_theme','ui_scale')")
+            cur.execute("SELECT key, value FROM settings WHERE key IN ('ui_theme','ui_scale','ui_base_pt')")
             rows = dict(cur.fetchall())
             conn.close()
             # Load scale if available
@@ -348,14 +451,20 @@ class App(tk.Tk):
             theme = None
             if 'ui_theme' in rows and rows['ui_theme']:
                 theme = rows['ui_theme']
-            return scale, theme
+            try:
+                base_pt = int(rows.get('ui_base_pt') or 12)
+                if base_pt < 8:
+                    base_pt = 8
+            except Exception:
+                base_pt = 12
+            return scale, theme, base_pt
         except Exception:
-            return 2.0, None
+            return 2.0, None, 12
 
     def refresh_theme(self) -> None:
         # Apply the theme first
         try:
-            apply_theme(self, scale=getattr(self, 'ui_scale', 1.5), theme_name=getattr(self, 'saved_theme', None) or 'light')
+            apply_theme(self, scale=getattr(self, 'ui_scale', 1.5), theme_name=getattr(self, 'saved_theme', None) or 'light', base_pt=getattr(self, 'saved_base_pt', 12))
         except Exception:
             pass
 
@@ -497,7 +606,7 @@ class LoginFrame(tk.Frame):
         inner = tk.Frame(self.card_container, bg=tint)
         inner.pack(fill='both', expand=True, padx=20, pady=16)
 
-        tk.Label(inner, text='Kooperatif Giris', font=('Arial', 18, 'bold'), bg=tint).pack(pady=(0, 10))
+        tk.Label(inner, text='Kooperatif Giris', font='TkHeadingFont', bg=tint).pack(pady=(0, 10))
 
         tk.Label(inner, text='Kullanici adi', bg=tint).pack(anchor='center', pady=(4, 2))
         self.entry_user = ttk.Entry(inner)
@@ -638,7 +747,7 @@ class RoleFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
         # Title
-        tk.Label(self, text=title, font=("Arial", 16, "bold")).pack(pady=(20, 6))
+        tk.Label(self, text=title, font='TkHeadingFont').pack(pady=(20, 6))
         # Centered user card with rounded outline
         user_holder = tk.Frame(self)
         user_holder.pack(pady=(0, 10), anchor='n')
@@ -849,7 +958,7 @@ class RoleFrame(tk.Frame):
                 pass
 
     def on_show(self, username: str, role: str) -> None:
-        self.user_label.config(text="Signed in as {} ({})".format(username, role))
+        self.user_label.config(text="{} ({})".format(username, role))
 
 
 class AdminFrame(RoleFrame):

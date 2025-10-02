@@ -29,7 +29,7 @@ class SalesFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="Yeni Satış", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
+        tk.Label(header, text="Yeni Satış", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Scan/Search bar
         sb = tk.Frame(self)
@@ -65,6 +65,19 @@ class SalesFrame(tk.Frame):
         self.cart.column("qty", width=80, anchor="e")
         self.cart.column("total", width=120, anchor="e")
         self.cart.pack(fill="both", expand=True, padx=20, pady=(8, 8))
+
+        # Cart tools: quick quantity adjust and remove selected line
+        tools = tk.Frame(self)
+        tools.pack(fill='x', padx=20, pady=(0, 6))
+        ttk.Button(tools, text="− Azalt (−)", command=lambda: self._adjust_selected_qty(-1)).pack(side='left')
+        ttk.Button(tools, text="+ Artır (+)", command=lambda: self._adjust_selected_qty(+1)).pack(side='left', padx=(6, 0))
+        ttk.Button(tools, text="Satırı Sil (Del)", command=self._remove_selected).pack(side='left', padx=(12, 0))
+        # Keyboard shortcuts on cart
+        self.cart.bind('<Delete>', lambda _e: (self._remove_selected(), 'break'))
+        self.cart.bind('<minus>', lambda _e: (self._adjust_selected_qty(-1), 'break'))
+        self.cart.bind('<KP_Subtract>', lambda _e: (self._adjust_selected_qty(-1), 'break'))
+        self.cart.bind('<plus>', lambda _e: (self._adjust_selected_qty(+1), 'break'))
+        self.cart.bind('<KP_Add>', lambda _e: (self._adjust_selected_qty(+1), 'break'))
 
         # Totals + actions
         bottom = tk.Frame(self)
@@ -103,7 +116,7 @@ class SalesFrame(tk.Frame):
         total_frame = tk.Frame(left_box)
         total_frame.pack(side="left", anchor="center")
         tk.Label(total_frame, text="Genel Toplam:").pack(side="left", anchor="center")
-        tk.Label(total_frame, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20), anchor="center")
+        tk.Label(total_frame, textvariable=self.total_var, font='TkHeadingFont').pack(side="left", padx=(6, 20), anchor="center")
 
         # Right group: button + payment (outlined)
         right_box = tk.Frame(bottom)
@@ -118,7 +131,7 @@ class SalesFrame(tk.Frame):
         self._bind_select_all(self.entry_paid)
         tk.Label(pay_box, text="Paraüstü:", bg=pay_box.cget('bg')).pack(side="left", pady=6)
         self.change_var = tk.StringVar(value="0.00")
-        tk.Label(pay_box, textvariable=self.change_var, font=("Arial", 12, "bold"), bg=pay_box.cget('bg')).pack(side="left", padx=(6, 12), pady=6)
+        tk.Label(pay_box, textvariable=self.change_var, font='TkHeadingFont', bg=pay_box.cget('bg')).pack(side="left", padx=(6, 12), pady=6)
         btn = ttk.Button(pay_box, text="Satışı Tamamla", command=self.complete_sale)
         btn.pack(side='left', padx=(6, 8), pady=6)
         # Enlarge button approximately to 100x50 using internal padding
@@ -152,11 +165,11 @@ class SalesFrame(tk.Frame):
         self._suggest_visible = False
         # Global binds: click outside closes; window move keeps position; periodic guard
         try:
-            self._root = self.winfo_toplevel()
-            self._root.bind_all('<Button-1>', self._on_global_click, add=True)
-            self._root.bind('<Configure>', lambda _e: (self._suggest_visible and self._position_suggest_popup()))
+            self._app_root = self.winfo_toplevel()
+            self._app_root.bind_all('<Button-1>', self._on_global_click, add=True)
+            self._app_root.bind('<Configure>', lambda _e: (self._suggest_visible and self._position_suggest_popup()))
         except Exception:
-            self._root = None
+            self._app_root = None
         self.after(300, self._guard_suggest_visibility)
         # Keep a fast barcode scan buffer
         self._scan_buf = ""
@@ -467,6 +480,67 @@ class SalesFrame(tk.Frame):
         self._sync_paid_with_total(total)
         self._update_change()
 
+    def _get_product_by_id(self, pid: int):
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("SELECT id, name, barcode, price, stock, unit FROM products WHERE id = ?", (int(pid),))
+            row = cur.fetchone()
+            conn.close()
+            return row
+        except Exception:
+            return None
+
+    def _remove_selected(self) -> None:
+        sel = self.cart.selection()
+        if not sel:
+            self.status_var.set("Önce listeden bir satır seçin.")
+            return
+        for iid in sel:
+            self.cart.delete(iid)
+        self._recalc_total()
+        self.status_var.set("")
+
+    def _adjust_selected_qty(self, delta: float) -> None:
+        sel = self.cart.selection()
+        if not sel:
+            self.status_var.set("Önce listeden bir satır seçin.")
+            return
+        iid = sel[0]
+        vals = list(self.cart.item(iid, "values"))
+        try:
+            pid = int(vals[0])
+            price = float(vals[3])
+            cur_qty = float(vals[4])
+        except Exception:
+            self.status_var.set("Satır verisi okunamadı.")
+            return
+        new_qty = cur_qty + float(delta)
+        # If new qty <= 0, remove the line
+        if new_qty <= 0:
+            self.cart.delete(iid)
+            self._recalc_total()
+            self.status_var.set("")
+            return
+        prod = self._get_product_by_id(pid)
+        if not prod:
+            self.status_var.set("Ürün bilgisi bulunamadı.")
+            return
+        _pid, _name, _barcode, _p, stock, unit = prod
+        try:
+            max_stock = float(stock or 0)
+        except Exception:
+            max_stock = 0.0
+        if new_qty > max_stock:
+            self.status_var.set(f"Yetersiz stok. Stokta {max_stock:g} {unit} var.")
+            return
+        line_total = price * new_qty
+        vals[4] = f"{new_qty:g}"
+        vals[5] = f"{line_total:.2f}"
+        self.cart.item(iid, values=tuple(vals))
+        self._recalc_total()
+        self.status_var.set("")
+
     def _sync_paid_with_total(self, total: float) -> None:
         try:
             val = f"{float(total):.2f}"
@@ -618,7 +692,7 @@ class ReturnFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="İade İşlemi", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
+        tk.Label(header, text="İade İşlemi", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Keep sale id internally; UI removed for clarity
         self.sale_id_var = tk.StringVar(value="")
@@ -649,7 +723,7 @@ class ReturnFrame(tk.Frame):
         # Left pane: Son Satışlar
         left_pane = tk.Frame(middle)
         left_pane.pack(side='left', fill='both', expand=True)
-        tk.Label(left_pane, text="Son Satışlar", font=("Arial", 12, "bold")).pack(anchor='w')
+        tk.Label(left_pane, text="Son Satışlar", font='TkHeadingFont').pack(anchor='w')
         self.purchases = ttk.Treeview(left_pane, columns=("sale_id","date","name","qty","returned","remaining","price"), show='headings', height=14)
         for col, lbl, w, anc in (
             ("sale_id","Satış #",80,"center"),
@@ -668,7 +742,7 @@ class ReturnFrame(tk.Frame):
         # Right pane: İade Sepeti
         right_pane = tk.Frame(middle)
         right_pane.pack(side='left', fill='both', expand=True, padx=(12,0))
-        tk.Label(right_pane, text="İade Sepeti", font=("Arial", 12, "bold")).pack(anchor='w')
+        tk.Label(right_pane, text="İade Sepeti", font='TkHeadingFont').pack(anchor='w')
         columns = ("product_id", "name", "barcode", "price", "qty", "total")
         self.cart = ttk.Treeview(right_pane, columns=columns, show="headings", height=14)
         for col, lbl, w, anc in (
@@ -687,7 +761,7 @@ class ReturnFrame(tk.Frame):
         bottom_wrap = tk.Frame(self)
         bottom_wrap.pack(side='bottom', fill='x')
         try:
-            bottom_wrap.configure(height=126)
+            bottom_wrap.configure(height=160)
             bottom_wrap.pack_propagate(False)
         except Exception:
             pass
@@ -709,7 +783,7 @@ class ReturnFrame(tk.Frame):
         ttk.Button(left_box, text="Şimdi", command=self._set_now).pack(side="left", padx=(0, 20))
         self.total_var = tk.StringVar(value="0.00")
         tk.Label(left_box, text="İade Tutarı:").pack(side="left")
-        tk.Label(left_box, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
+        tk.Label(left_box, textvariable=self.total_var, font='TkHeadingFont').pack(side="left", padx=(6, 20))
 
         right_box = tk.Frame(bottom)
         right_box.pack(side='right')
@@ -721,7 +795,7 @@ class ReturnFrame(tk.Frame):
         self._bind_select_all(self.entry_paid)
         tk.Label(pay_box, text="Fark:", bg=pay_box.cget('bg')).pack(side="left", pady=6)
         self.change_var = tk.StringVar(value="0.00")
-        tk.Label(pay_box, textvariable=self.change_var, font=("Arial", 12, "bold"), bg=pay_box.cget('bg')).pack(side="left", padx=(6,12), pady=6)
+        tk.Label(pay_box, textvariable=self.change_var, font='TkHeadingFont', bg=pay_box.cget('bg')).pack(side="left", padx=(6,12), pady=6)
         btnr = ttk.Button(pay_box, text="İadeyi Tamamla", command=self.complete_return)
         btnr.pack(side='left', padx=(6,8), pady=6)
         btnr.pack_configure(ipadx=24, ipady=6)
@@ -761,7 +835,7 @@ class ReturnFrame(tk.Frame):
         total_frame = tk.Frame(left_box)
         total_frame.pack(side="left", anchor="center")
         tk.Label(total_frame, text="İade Tutarı:").pack(side="left", anchor="center")
-        tk.Label(total_frame, textvariable=self.total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20), anchor="center")
+        tk.Label(total_frame, textvariable=self.total_var, font='TkHeadingFont').pack(side="left", padx=(6, 20), anchor="center")
         # Track user edits on paid field for return flow
         self._paid_user_edited = False
         self._last_auto_paid = ''

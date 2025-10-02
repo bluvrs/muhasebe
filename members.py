@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
@@ -16,7 +16,7 @@ class MembersFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="Uye Yonetimi", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
+        tk.Label(header, text="Uye Yonetimi", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Users list
         columns = ("id", "username", "role")
@@ -238,3 +238,4 @@ class MembersFrame(tk.Frame):
         conn.close()
         self.entry_password.delete(0, tk.END)
         messagebox.showinfo("Tamam", "Sifre guncellendi.")
+

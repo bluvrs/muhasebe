@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
@@ -226,7 +226,7 @@ class ReportsFrame(tk.Frame):
         # Back arrow (top-left)
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10, 6), pady=(10, 6))
-        tk.Label(header, text="Raporlar", font=("Arial", 16, "bold")).pack(side="left", pady=(16, 6))
+        tk.Label(header, text="Raporlar", font='TkHeadingFont').pack(side="left", pady=(16, 6))
 
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True)
@@ -235,7 +235,7 @@ class ReportsFrame(tk.Frame):
         self.daily_tab = tk.Frame(self.nb)
         self.cash_tab = tk.Frame(self.nb)
         self.inventory_tab = tk.Frame(self.nb)
-        self.nb.add(self.daily_tab, text="Günlük Gelir/Satış")
+        self.nb.add(self.daily_tab, text="GÃ¼nlÃ¼k Gelir/SatÄ±ÅŸ")
         self.nb.add(self.cash_tab, text="Kasa Defteri")
         self.nb.add(self.inventory_tab, text="Envanter Defteri")
 
@@ -246,7 +246,7 @@ class ReportsFrame(tk.Frame):
         # Header actions
         self.btn_pdf = ttk.Button(header, text="PDF", command=self._export_pdf)
         self.btn_pdf.pack(side="right", padx=(0, 8), pady=(16, 6))
-        self.btn_print = ttk.Button(header, text="Yazdır", command=self._print_preview)
+        self.btn_print = ttk.Button(header, text="YazdÄ±r", command=self._print_preview)
         self.btn_print.pack(side="right", padx=(0, 8), pady=(16, 6))
 
         self.refresh()
@@ -282,14 +282,14 @@ class ReportsFrame(tk.Frame):
         self.daily_date.pack(side="left", padx=(6, 6))
         self.btn_day_next = ttk.Button(bar, text=">", width=3, command=lambda: self._change_day(1))
         self.btn_day_next.pack(side="left")
-        self.btn_today = ttk.Button(bar, text="Bugün", command=self._set_today)
+        self.btn_today = ttk.Button(bar, text="BugÃ¼n", command=self._set_today)
         self.btn_today.pack(side="left", padx=(6, 12))
         self.btn_refresh_daily = ttk.Button(bar, text="Yenile", command=self._refresh_daily)
         self.btn_refresh_daily.pack(side="left")
 
         columns = ("id", "time", "total")
         self.sales_tree = ttk.Treeview(self.daily_tab, columns=columns, show="headings", height=12)
-        self.sales_tree.heading("id", text="Satış #")
+        self.sales_tree.heading("id", text="SatÄ±ÅŸ #")
         self.sales_tree.heading("time", text="Saat")
         self.sales_tree.heading("total", text="Tutar")
         self.sales_tree.column("id", width=80, anchor="center")
@@ -300,8 +300,8 @@ class ReportsFrame(tk.Frame):
         bottom = tk.Frame(self.daily_tab)
         bottom.pack(fill="x", padx=20, pady=(0, 10))
         self.daily_total_var = tk.StringVar(value="0.00")
-        tk.Label(bottom, text="Günlük Toplam:").pack(side="left")
-        tk.Label(bottom, textvariable=self.daily_total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
+        tk.Label(bottom, text="GÃ¼nlÃ¼k Toplam:").pack(side="left")
+        tk.Label(bottom, textvariable=self.daily_total_var, font='TkHeadingFont').pack(side="left", padx=(6, 20))
 
     def _get_selected_day(self) -> str:
         if _DateEntry is not None:
@@ -358,31 +358,31 @@ class ReportsFrame(tk.Frame):
         top.pack(fill="x", padx=20, pady=(10, 6))
         self.cash_total_var = tk.StringVar(value="0.00")
         self.bank_total_var = tk.StringVar(value="0.00")
-        tk.Label(top, text="Kasa Toplamı:").pack(side="left")
-        tk.Label(top, textvariable=self.cash_total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
-        tk.Label(top, text="Banka Toplamı:").pack(side="left")
-        tk.Label(top, textvariable=self.bank_total_var, font=("Arial", 12, "bold")).pack(side="left", padx=(6, 20))
+        tk.Label(top, text="Kasa ToplamÄ±:").pack(side="left")
+        tk.Label(top, textvariable=self.cash_total_var, font='TkHeadingFont').pack(side="left", padx=(6, 20))
+        tk.Label(top, text="Banka ToplamÄ±:").pack(side="left")
+        tk.Label(top, textvariable=self.bank_total_var, font='TkHeadingFont').pack(side="left", padx=(6, 20))
 
         # Actions
         actions = tk.Frame(self.cash_tab)
         actions.pack(fill="x", padx=20, pady=(0, 10))
         # Cash in/out
-        tk.Label(actions, text="Kasa işlem tutarı").grid(row=0, column=0, sticky="w")
+        tk.Label(actions, text="Kasa iÅŸlem tutarÄ±").grid(row=0, column=0, sticky="w")
         self.cash_amount = tk.Entry(actions, width=12)
         self.cash_amount.grid(row=0, column=1, sticky="w", padx=(6, 10))
-        tk.Label(actions, text="Açıklama").grid(row=0, column=2, sticky="w")
+        tk.Label(actions, text="AÃ§Ä±klama").grid(row=0, column=2, sticky="w")
         self.cash_desc = tk.Entry(actions, width=40)
         self.cash_desc.grid(row=0, column=3, sticky="w", padx=(6, 10))
         self.btn_cash_in = ttk.Button(actions, text="Kasaya Ekle", command=lambda: self._cash_op('in'))
         self.btn_cash_in.grid(row=0, column=4, padx=(6, 0))
-        self.btn_cash_out = ttk.Button(actions, text="Kasadan Çık", command=lambda: self._cash_op('out'))
+        self.btn_cash_out = ttk.Button(actions, text="Kasadan Ã‡Ä±k", command=lambda: self._cash_op('out'))
         self.btn_cash_out.grid(row=0, column=5, padx=(6, 0))
 
         # Transfer to bank
-        tk.Label(actions, text="Bankaya aktar tutarı").grid(row=1, column=0, sticky="w")
+        tk.Label(actions, text="Bankaya aktar tutarÄ±").grid(row=1, column=0, sticky="w")
         self.transfer_amount = tk.Entry(actions, width=12)
         self.transfer_amount.grid(row=1, column=1, sticky="w", padx=(6, 10))
-        tk.Label(actions, text="Açıklama").grid(row=1, column=2, sticky="w")
+        tk.Label(actions, text="AÃ§Ä±klama").grid(row=1, column=2, sticky="w")
         self.transfer_desc = tk.Entry(actions, width=40)
         self.transfer_desc.grid(row=1, column=3, sticky="w", padx=(6, 10))
         self.btn_transfer = ttk.Button(actions, text="Bankaya Aktar", command=self._transfer_to_bank)
@@ -399,26 +399,26 @@ class ReportsFrame(tk.Frame):
         lists.add(cash_frame)
         lists.add(bank_frame)
 
-        tk.Label(cash_frame, text="Kasa İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w")
+        tk.Label(cash_frame, text="Kasa Ä°ÅŸlemleri", font='TkHeadingFont').pack(anchor="w")
         ccols = ("date", "type", "amount", "description")
         self.cash_tree = ttk.Treeview(cash_frame, columns=ccols, show="headings", height=12)
         self.cash_tree.heading("date", text="Tarih")
-        self.cash_tree.heading("type", text="Tür")
+        self.cash_tree.heading("type", text="TÃ¼r")
         self.cash_tree.heading("amount", text="Tutar")
-        self.cash_tree.heading("description", text="Açıklama")
+        self.cash_tree.heading("description", text="AÃ§Ä±klama")
         self.cash_tree.column("date", width=120)
         self.cash_tree.column("type", width=80, anchor="center")
         self.cash_tree.column("amount", width=120, anchor="e")
         self.cash_tree.column("description", width=300)
         self.cash_tree.pack(fill="both", expand=True, pady=(4, 0))
 
-        tk.Label(bank_frame, text="Banka İşlemleri", font=("Arial", 12, "bold")).pack(anchor="w")
+        tk.Label(bank_frame, text="Banka Ä°ÅŸlemleri", font='TkHeadingFont').pack(anchor="w")
         bcols = ("date", "type", "amount", "description")
         self.bank_tree = ttk.Treeview(bank_frame, columns=bcols, show="headings", height=12)
         self.bank_tree.heading("date", text="Tarih")
-        self.bank_tree.heading("type", text="Tür")
+        self.bank_tree.heading("type", text="TÃ¼r")
         self.bank_tree.heading("amount", text="Tutar")
-        self.bank_tree.heading("description", text="Açıklama")
+        self.bank_tree.heading("description", text="AÃ§Ä±klama")
         self.bank_tree.column("date", width=120)
         self.bank_tree.column("type", width=80, anchor="center")
         self.bank_tree.column("amount", width=120, anchor="e")
@@ -484,10 +484,10 @@ class ReportsFrame(tk.Frame):
             self.cash_tree.delete(iid)
         def _tr_type_ctx(ctx: str, t: str) -> str:
             if ctx == 'cash':
-                return "Kasaya Giriş" if t == 'in' else ("Kasadan Çıkış" if t == 'out' else str(t))
+                return "Kasaya GiriÅŸ" if t == 'in' else ("Kasadan Ã‡Ä±kÄ±ÅŸ" if t == 'out' else str(t))
             if ctx == 'bank':
-                return "Bankaya Giriş" if t == 'in' else ("Bankadan Çıkış" if t == 'out' else str(t))
-            return "Giriş" if t == 'in' else ("Çıkış" if t == 'out' else str(t))
+                return "Bankaya GiriÅŸ" if t == 'in' else ("Bankadan Ã‡Ä±kÄ±ÅŸ" if t == 'out' else str(t))
+            return "GiriÅŸ" if t == 'in' else ("Ã‡Ä±kÄ±ÅŸ" if t == 'out' else str(t))
         for d, t, a, desc in cash_rows:
             self.cash_tree.insert("", "end", values=(d, _tr_type_ctx('cash', t), f"{float(a):.2f}", desc))
         for iid in self.bank_tree.get_children():
@@ -500,14 +500,14 @@ class ReportsFrame(tk.Frame):
         columns = ("name", "barcode", "stock", "unit", "price", "cost", "value_retail", "value_cost")
         self.inv_tree = ttk.Treeview(self.inventory_tab, columns=columns, show="headings", height=16)
         headers = {
-            "name": "Ürün",
+            "name": "ÃœrÃ¼n",
             "barcode": "Barkod",
             "stock": "Stok",
             "unit": "Birim",
             "price": "Fiyat",
             "cost": "Maliyet",
-            "value_retail": "Değer (Satış)",
-            "value_cost": "Değer (Maliyet)",
+            "value_retail": "DeÄŸer (SatÄ±ÅŸ)",
+            "value_cost": "DeÄŸer (Maliyet)",
         }
         widths = {
             "name": 220,
@@ -576,7 +576,7 @@ class ReportsFrame(tk.Frame):
         except Exception:
             active = 0
         if active == 0:
-            title = f"Günlük Satış Raporu - {self._get_selected_day()}"
+            title = f"GÃ¼nlÃ¼k SatÄ±ÅŸ Raporu - {self._get_selected_day()}"
             html = self._html_daily()
         elif active == 1:
             title = "Kasa/Banka Raporu"
@@ -620,7 +620,7 @@ class ReportsFrame(tk.Frame):
   <body onload="onLoad()">
     {f'<h1>{school}</h1>' if school else ''}
     <h2>{title}</h2>
-    <div class="meta">Oluşturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+    <div class="meta">OluÅŸturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
     {html}
   </body>
 </html>
@@ -644,7 +644,7 @@ class ReportsFrame(tk.Frame):
             for sid, tm, tot in rows
         )
         return (
-            "<table><thead><tr><th>Satış #</th><th>Saat</th><th>Tutar</th></tr></thead>"
+            "<table><thead><tr><th>SatÄ±ÅŸ #</th><th>Saat</th><th>Tutar</th></tr></thead>"
             f"<tbody>{body}</tbody><tfoot><tr><td colspan='2'>Toplam</td><td class='right'>{total}</td></tr></tfoot></table>"
         )
 
@@ -660,12 +660,12 @@ class ReportsFrame(tk.Frame):
             )
         cash_html = (
             "<h2>Kasa</h2>"
-            "<table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th><th>Açıklama</th></tr></thead>"
+            "<table><thead><tr><th>Tarih</th><th>TÃ¼r</th><th>Tutar</th><th>AÃ§Ä±klama</th></tr></thead>"
             f"<tbody>{rows_to_html(cash_rows)}</tbody><tfoot><tr><td colspan='2'>Toplam</td><td class='right'>{cash_total}</td><td></td></tr></tfoot></table>"
         )
         bank_html = (
             "<h2>Banka</h2>"
-            "<table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th><th>Açıklama</th></tr></thead>"
+            "<table><thead><tr><th>Tarih</th><th>TÃ¼r</th><th>Tutar</th><th>AÃ§Ä±klama</th></tr></thead>"
             f"<tbody>{rows_to_html(bank_rows)}</tbody><tfoot><tr><td colspan='2'>Toplam</td><td class='right'>{bank_total}</td><td></td></tr></tfoot></table>"
         )
         return cash_html + bank_html
@@ -679,7 +679,7 @@ class ReportsFrame(tk.Frame):
             for r in rows
         )
         head = [
-            "Ürün","Barkod","Stok","Birim","Fiyat","Maliyet","Değer (Satış)","Değer (Maliyet)"
+            "ÃœrÃ¼n","Barkod","Stok","Birim","Fiyat","Maliyet","DeÄŸer (SatÄ±ÅŸ)","DeÄŸer (Maliyet)"
         ]
         thead = "".join(f"<th>{h}</th>" for h in head)
         return f"<table><thead><tr>{thead}</tr></thead><tbody>{body}</tbody></table>"
@@ -688,8 +688,8 @@ class ReportsFrame(tk.Frame):
     def _export_pdf(self) -> None:
         if not _PDF_AVAILABLE:
             messagebox.showinfo(
-                "PDF desteği yok",
-                "PDF oluşturmak için 'reportlab' kurulmalı.\nKurulum: pip install reportlab",
+                "PDF desteÄŸi yok",
+                "PDF oluÅŸturmak iÃ§in 'reportlab' kurulmalÄ±.\nKurulum: pip install reportlab",
             )
             return
         try:
@@ -722,12 +722,12 @@ class ReportsFrame(tk.Frame):
         school = self._get_setting('report_school_name') or ''
         if school:
             flows.append(Paragraph(school, styles['Title']))
-        flows.append(Paragraph(f"Oluşturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
+        flows.append(Paragraph(f"OluÅŸturma: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
         flows.append(Spacer(1, 6))
 
         if active == 0:
-            title_text = f"Günlük Satış Raporu - {self._get_selected_day()}"
-            data = [["Satış #", "Saat", "Tutar"]]
+            title_text = f"GÃ¼nlÃ¼k SatÄ±ÅŸ Raporu - {self._get_selected_day()}"
+            data = [["SatÄ±ÅŸ #", "Saat", "Tutar"]]
             for sid, tm, tot in [self.sales_tree.item(i, "values") for i in self.sales_tree.get_children()]:
                 data.append([str(sid), str(tm), f"{float(tot):.2f}"])
             data.append(["", "Toplam", self.daily_total_var.get()])
@@ -747,12 +747,12 @@ class ReportsFrame(tk.Frame):
             title_text = "Kasa/Bank Raporu"
             flows.append(Paragraph(title_text, styles['Heading2']))
             # Cash
-            flows.append(Paragraph("Kasa İşlemleri", styles['Heading3']))
-            cdata = [["Tarih", "Tür", "Tutar", "Açıklama"]]
+            flows.append(Paragraph("Kasa Ä°ÅŸlemleri", styles['Heading3']))
+            cdata = [["Tarih", "TÃ¼r", "Tutar", "AÃ§Ä±klama"]]
             for d, ttyp, amt, desc in [self.cash_tree.item(i, "values") for i in self.cash_tree.get_children()]:
                 cdata.append([str(d), str(ttyp), f"{float(amt):.2f}", str(desc)])
             cdata.append(["", "Toplam", self.cash_total_var.get(), ""])
-            # Widen Tarih and Tür columns for readability
+            # Widen Tarih and TÃ¼r columns for readability
             ct = Table(cdata, hAlign='LEFT', colWidths=[110, 140, 70, 220])
             ct.setStyle(TableStyle([
                 ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
@@ -765,12 +765,12 @@ class ReportsFrame(tk.Frame):
             flows.append(ct)
             flows.append(Spacer(1, 8))
             # Bank
-            flows.append(Paragraph("Banka İşlemleri", styles['Heading3']))
-            bdata = [["Tarih", "Tür", "Tutar", "Açıklama"]]
+            flows.append(Paragraph("Banka Ä°ÅŸlemleri", styles['Heading3']))
+            bdata = [["Tarih", "TÃ¼r", "Tutar", "AÃ§Ä±klama"]]
             for d, ttyp, amt, desc in [self.bank_tree.item(i, "values") for i in self.bank_tree.get_children()]:
                 bdata.append([str(d), str(ttyp), f"{float(amt):.2f}", str(desc)])
             bdata.append(["", "Toplam", self.bank_total_var.get(), ""])
-            # Widen Tarih and Tür columns for readability
+            # Widen Tarih and TÃ¼r columns for readability
             bt = Table(bdata, hAlign='LEFT', colWidths=[110, 140, 70, 220])
             bt.setStyle(TableStyle([
                 ( 'FONTNAME', (0,0), (-1,-1), font_reg if font_reg else 'Helvetica'),
@@ -784,7 +784,7 @@ class ReportsFrame(tk.Frame):
         else:
             title_text = "Envanter Raporu"
             flows.append(Paragraph(title_text, styles['Heading2']))
-            header = ["Ürün", "Barkod", "Stok", "Birim", "Fiyat", "Maliyet", "Değer (Satış)", "Değer (Maliyet)"]
+            header = ["ÃœrÃ¼n", "Barkod", "Stok", "Birim", "Fiyat", "Maliyet", "DeÄŸer (SatÄ±ÅŸ)", "DeÄŸer (Maliyet)"]
             data = [header]
             for r in [self.inv_tree.item(i, "values") for i in self.inv_tree.get_children()]:
                 data.append(list(r))
@@ -807,7 +807,7 @@ class ReportsFrame(tk.Frame):
         try:
             doc.build(flows)
         except Exception as e:
-            messagebox.showerror("PDF hatası", f"PDF olusturulamadi: {e}")
+            messagebox.showerror("PDF hatasÄ±", f"PDF olusturulamadi: {e}")
             try:
                 os.unlink(pdf_path)
             except Exception:
@@ -819,7 +819,7 @@ class ReportsFrame(tk.Frame):
             try:
                 webbrowser.open(f"file://{pdf_path}")
             except Exception:
-                messagebox.showinfo("PDF hazır", f"PDF hazır: {pdf_path}")
+                messagebox.showinfo("PDF hazÄ±r", f"PDF hazÄ±r: {pdf_path}")
 
     def refresh_style(self):
         theme = getattr(self.controller, "saved_theme", "light")
@@ -845,3 +845,4 @@ class ReportsFrame(tk.Frame):
         ):
             if btn:
                 btn.configure(style="Custom.TButton")
+

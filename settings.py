@@ -21,9 +21,20 @@ class SettingsFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="Ayarlar", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
+        tk.Label(header, text="Ayarlar", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
-        # === School Name Card ===
+        # Tabs container
+        nb = ttk.Notebook(self)
+        nb.pack(fill='both', expand=True)
+
+        tab_name = tk.Frame(nb)
+        tab_style = tk.Frame(nb)
+        tab_db = tk.Frame(nb)
+        nb.add(tab_name, text='Okul Adı')
+        nb.add(tab_style, text='Yazı Boyutu ve Tema')
+        nb.add(tab_db, text='Veri Tabanı')
+
+        # === School Name Card (Tab 1) ===
         def _autosize_card(card: tk.Frame, inner: tk.Frame, min_w: int = 560, pad: int = 12, min_h=None) -> None:
             try:
                 inner.update_idletasks()
@@ -39,7 +50,7 @@ class SettingsFrame(tk.Frame):
             except Exception:
                 # Ölçüm başarısız olursa güvenli bir yükseklik kullan
                 card.configure(width=min_w, height=200)
-        name_holder = tk.Frame(self)
+        name_holder = tk.Frame(tab_name)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
         name_card, name_inner = rounded_outline(name_holder, radius=12, padding=12, border='#888')
         self.name_card = name_card
@@ -47,7 +58,7 @@ class SettingsFrame(tk.Frame):
         name_card.pack(anchor='center', fill='x')
         tint_name = smart_tinted_bg(self)
         name_inner.configure(bg=tint_name)
-        tk.Label(name_inner, text="Okul adı (Rapor Başlığı)", font=("Arial", 12, "bold"), bg=tint_name).pack(anchor='center')
+        tk.Label(name_inner, text="Okul adı (Rapor Başlığı)", font='TkHeadingFont', bg=tint_name).pack(anchor='center')
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
         self.entry_school = ttk.Entry(row_name, width=40)
@@ -58,8 +69,8 @@ class SettingsFrame(tk.Frame):
         _autosize_card(name_card, name_inner, min_w=560, pad=12, min_h=180)
         name_card.pack_propagate(False)
 
-        # === Theme Card ===
-        theme_holder = tk.Frame(self)
+        # === Theme Card (Tab 2) ===
+        theme_holder = tk.Frame(tab_style)
         theme_holder.pack(fill='x', padx=20, pady=(4, 8))
         theme_card, theme_inner = rounded_outline(theme_holder, radius=12, padding=12, border='#888')
         self.theme_card = theme_card
@@ -67,15 +78,15 @@ class SettingsFrame(tk.Frame):
         theme_card.pack(anchor='center', fill='x')
         tint_theme = smart_tinted_bg(self)
         theme_inner.configure(bg=tint_theme)
-        tk.Label(theme_inner, text="Tema", font=("Arial", 12, "bold"), bg=tint_theme).pack(anchor='center')
+        tk.Label(theme_inner, text="Tema", font='TkHeadingFont', bg=tint_theme).pack(anchor='center')
         self.var_dark = tk.BooleanVar(value=False)
         self.theme_checkbox = tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
         self.theme_checkbox.pack(anchor='center', pady=(6, 0))
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
 
-        # === Scale Card ===
-        scale_holder = tk.Frame(self)
+        # === Scale Card (Tab 2) ===
+        scale_holder = tk.Frame(tab_style)
         scale_holder.pack(fill='x', padx=20, pady=(4, 8))
         scale_card, scale_inner = rounded_outline(scale_holder, radius=12, padding=12, border='#888')
         self.scale_card = scale_card
@@ -83,18 +94,28 @@ class SettingsFrame(tk.Frame):
         scale_card.pack(anchor='center', fill='x')
         tint_scale = smart_tinted_bg(self)
         scale_inner.configure(bg=tint_scale)
-        tk.Label(scale_inner, text="Yazı Boyutu", font=("Arial", 12, "bold"), bg=tint_scale).pack(anchor='center')
+        tk.Label(scale_inner, text="Yazı Boyutu", font='TkHeadingFont', bg=tint_scale).pack(anchor='center')
         self.var_scale = tk.StringVar(value='2.0')
-        radios = tk.Frame(scale_inner, bg=tint_scale)
-        radios.pack(pady=(6, 0))
+        # Place scale radios and base font spinbox side-by-side in a single row
+        row = tk.Frame(scale_inner, bg=tint_scale)
+        row.pack(pady=(6, 0))
+        radios = tk.Frame(row, bg=tint_scale)
+        radios.pack(side='left')
         for label, val in (("1x", '1.0'), ("1.5x", '1.5'), ("2x", '2.0')):
             tk.Radiobutton(radios, text=label, variable=self.var_scale, value=val, command=self.on_scale_change, bg=tint_scale).pack(side='left', padx=8)
+        row_base = tk.Frame(row, bg=tint_scale)
+        row_base.pack(side='left', padx=(16, 0))
+        tk.Label(row_base, text="Temel yazı boyutu (pt):", bg=tint_scale).pack(side='left')
+        self.var_base_pt = tk.StringVar(value='12')
+        self.spin_base = tk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, command=self.on_base_pt_change)
+        self.spin_base.pack(side='left', padx=(6, 0))
+        self.spin_base.bind('<Return>', lambda _e: self.on_base_pt_change())
         _autosize_card(scale_card, scale_inner, min_w=560, pad=12, min_h=160)
         scale_card.pack_propagate(False)
 
-        # DB utils
+        # === DB utils (Tab 3) ===
         # DB card centered and compact (just fits 3 buttons)
-        db_holder = tk.Frame(self)
+        db_holder = tk.Frame(tab_db)
         db_holder.pack(fill='x', padx=20, pady=(12,0))
         db_card, db_inner = rounded_outline(db_holder, radius=12, padding=12, border='#888')
         self.db_card = db_card
@@ -103,7 +124,7 @@ class SettingsFrame(tk.Frame):
         tint = smart_tinted_bg(self)
         db_inner.configure(bg=tint)
         # Title + buttons centered inside card
-        tk.Label(db_inner, text="Veri Tabanı", font=("Arial", 12, "bold"), bg=tint).pack(pady=(2, 6), anchor='center')
+        tk.Label(db_inner, text="Veri Tabanı", font='TkHeadingFont', bg=tint).pack(pady=(2, 6), anchor='center')
         btn_row = tk.Frame(db_inner, bg=tint)
         btn_row.pack(pady=4, anchor='center')
         ttk.Button(btn_row, text="Yedekle", command=self.backup_db, style='Solid.TButton').pack(side='left', padx=6)
@@ -257,6 +278,18 @@ class SettingsFrame(tk.Frame):
                 self.var_scale.set(str(r_scale[0]) if r_scale and r_scale[0] else '2.0')
         except Exception:
             pass
+        # base font point size
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM settings WHERE key='ui_base_pt'")
+            r_base = cur.fetchone()
+            conn.close()
+            val = str(r_base[0]) if r_base and r_base[0] else '12'
+            if hasattr(self, 'var_base_pt'):
+                self.var_base_pt.set(val)
+        except Exception:
+            pass
 
     def save(self) -> None:
         # Only save the school name
@@ -297,8 +330,13 @@ class SettingsFrame(tk.Frame):
                 except Exception:
                     scale_val = getattr(self.controller, 'saved_scale', 1.5)
                 try:
+                    base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
+                except Exception:
+                    base_pt = getattr(self.controller, 'saved_base_pt', 12)
+                try:
                     self.controller.saved_theme = theme_key
                     self.controller.saved_scale = float(scale_val)
+                    self.controller.saved_base_pt = int(base_pt)
                 except Exception:
                     pass
                 self.restart_app()
@@ -308,13 +346,18 @@ class SettingsFrame(tk.Frame):
                     scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
                 except Exception:
                     scale_val = getattr(self.controller, 'saved_scale', 1.5)
-                apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
+                try:
+                    base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
+                except Exception:
+                    base_pt = getattr(self.controller, 'saved_base_pt', 12)
+                apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
                 if hasattr(self.controller, 'refresh_theme'):
                     self.controller.refresh_theme()
                 try:
                     self.controller.saved_theme = theme_key
                     self.controller.saved_scale = float(scale_val)
                     self.controller.ui_scale = float(scale_val)
+                    self.controller.saved_base_pt = int(base_pt)
                 except Exception:
                     pass
                 self.status_var.set("Tema uygulandı (yeniden başlatmadan).")
@@ -356,7 +399,8 @@ class SettingsFrame(tk.Frame):
         # Apply only font scaling with current theme (no tk scaling)
         try:
             theme_key = 'dark' if self.var_dark.get() else 'light'
-            apply_theme(self.controller, scale=scale_val, theme_name=theme_key)
+            base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
+            apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
             # Keep window size policy independent from font scale
@@ -366,6 +410,41 @@ class SettingsFrame(tk.Frame):
             pass
         # Only update status message at the end
         self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
+
+    def on_base_pt_change(self) -> None:
+        # Persist and apply base font point size
+        try:
+            base_pt = int(self.var_base_pt.get())
+            if base_pt < 8:
+                base_pt = 8
+        except Exception:
+            base_pt = 12
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            cur.execute(
+                "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                ('ui_base_pt', str(base_pt)),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+        try:
+            theme_key = 'dark' if self.var_dark.get() else 'light'
+            scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
+        except Exception:
+            theme_key = getattr(self.controller, 'saved_theme', 'light') or 'light'
+            scale_val = getattr(self.controller, 'saved_scale', 1.5)
+        try:
+            apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
+            if hasattr(self.controller, 'refresh_theme'):
+                self.controller.refresh_theme()
+            self.controller.saved_base_pt = int(base_pt)
+        except Exception:
+            pass
+        self.status_var.set(f"Temel yazı boyutu: {base_pt} pt")
 
     # --- DB Utils ---
     def backup_db(self) -> None:

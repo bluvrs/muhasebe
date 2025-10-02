@@ -63,8 +63,20 @@ def make_back_arrow(parent: tk.Misc, command) -> tk.Canvas:
 
 from typing import Optional
 
+def fix_mojibake_text(s: Optional[str]) -> Optional[str]:
+    """Best‑effort fix for UTF‑8 text that was mis‑decoded as Latin‑1/Windows‑1252.
+    If conversion fails, returns the original string.
+    """
+    try:
+        if not isinstance(s, str):
+            return s
+        # Try the common path: original UTF‑8 bytes were decoded as latin‑1
+        return s.encode('latin-1').decode('utf-8')
+    except Exception:
+        return s
 
-def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional[str] = None) -> None:
+
+def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional[str] = None, base_pt: Optional[int] = None) -> None:
     """Apply a larger, cleaner Tk/ttk theme for readability.
     - Increases default fonts
     - Pads buttons/entries
@@ -79,13 +91,22 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
                 s = 1.0
         except Exception:
             s = 1.0
-        # Base sizes (unscaled). Keep modest defaults so 1.0 looks normal.
+        # Base font point sizes (unscaled). Allow override via base_pt.
+        try:
+            bpt = int(base_pt) if base_pt is not None else None
+        except Exception:
+            bpt = None
+        b_default = bpt if bpt and bpt > 6 else 12
+        b_heading = max(8, b_default + 2)
+        b_menu = max(8, b_default + 2)
+        b_tooltip = b_default
+        # Menu buttons use a dedicated named font and are excluded from global base size
         base = {
-            'TkDefaultFont': 12,
-            'TkTextFont': 12,
-            'TkMenuFont': 14,
-            'TkHeadingFont': 14,
-            'TkTooltipFont': 12,
+            'TkDefaultFont': b_default,
+            'TkTextFont': b_default,
+            'TkMenuFont': b_menu,
+            'TkHeadingFont': b_heading,
+            'TkTooltipFont': b_tooltip,
             'MenuButtonFont': 46,
         }
         for fname, bsize in base.items():
@@ -99,8 +120,11 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
                         tkfont.Font(name='MenuButtonFont', size=-new_size, weight='bold')
                 else:
                     f = tkfont.nametofont(fname)
-                    # Preserve weight/family, update size
-                    f.configure(size=new_size)
+                    # Preserve family, update size and weight for Heading
+                    if fname == 'TkHeadingFont':
+                        f.configure(size=new_size, weight='bold')
+                    else:
+                        f.configure(size=new_size)
             except Exception:
                 pass
         # Apply defaults to classic Tk widgets too

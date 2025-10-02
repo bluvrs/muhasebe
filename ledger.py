@@ -22,7 +22,7 @@ class LedgerFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="Gelir/Gider Kaydı", font=("Arial", 16, "bold")).pack(side='left', pady=(16,6))
+        tk.Label(header, text="Gelir/Gider Kaydı", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Tabs to switch between Gelir and Gider
         self.nb = ttk.Notebook(self)
