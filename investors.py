@@ -21,12 +21,12 @@ class InvestorsFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="YatÄ±rÄ±mcÄ±lar", font='TkHeadingFont').pack(side='left', pady=(16,6))
+        tk.Label(header, text="Yatırımcılar", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Pool percent setting
         pool = tk.Frame(self)
         pool.pack(fill="x", padx=20, pady=(0, 8))
-        tk.Label(pool, text="YatÄ±rÄ±m Havuzu % (OrtaklÄ±ÄŸa aÃ§Ä±k pay)").pack(side="left")
+        tk.Label(pool, text="Yatırım Havuzu % (Ortaklığa açık pay)").pack(side="left")
         self.entry_pool = tk.Entry(pool, width=6)
         self.entry_pool.pack(side="left", padx=(6, 6))
         self.btn_save_pool = ttk.Button(pool, text="Kaydet", command=self.save_pool_percent)
@@ -41,20 +41,20 @@ class InvestorsFrame(tk.Frame):
         nb.pack(fill='both', expand=True)
         tab_list = tk.Frame(nb)
         tab_tx = tk.Frame(nb)
-        nb.add(tab_list, text='YatÄ±rÄ±mcÄ±lar')
-        nb.add(tab_tx, text='YatÄ±rÄ±mcÄ± Ä°ÅŸlemleri')
+        nb.add(tab_list, text='Yatırımcılar')
+        nb.add(tab_tx, text='Yatırımcı İşlemleri')
 
         # List
         columns = ("id", "name", "phone", "initial_capital", "current_capital", "pool_share_%", "shop_share_%", "initial_date")
         # Keep the top list compact so the transactions list below stays readable
         self.tree = ttk.Treeview(tab_list, columns=columns, show="headings", height=7)
         self.tree.heading("id", text="ID")
-        self.tree.heading("name", text="Ä°sim")
+        self.tree.heading("name", text="İsim")
         self.tree.heading("phone", text="Telefon")
-        self.tree.heading("initial_capital", text="BaÅŸlangÄ±Ã§ Sermayesi")
-        self.tree.heading("current_capital", text="GÃ¼ncel Sermaye")
-        self.tree.heading("pool_share_%", text="Havuz PayÄ± %")
-        self.tree.heading("shop_share_%", text="DÃ¼kkan PayÄ± %")
+        self.tree.heading("initial_capital", text="Başlangıç Sermayesi")
+        self.tree.heading("current_capital", text="Güncel Sermaye")
+        self.tree.heading("pool_share_%", text="Havuz Payı %")
+        self.tree.heading("shop_share_%", text="Dükkan Payı %")
         self.tree.heading("initial_date", text="Tarih")
         self.tree.column("id", width=50, anchor="center")
         self.tree.column("name", width=220)
@@ -71,7 +71,7 @@ class InvestorsFrame(tk.Frame):
         form = tk.Frame(tab_list)
         form.pack(fill="x", padx=20, pady=10)
 
-        tk.Label(form, text="Ä°sim").grid(row=0, column=0, sticky="w")
+        tk.Label(form, text="İsim").grid(row=0, column=0, sticky="w")
         self.entry_name = tk.Entry(form)
         self.entry_name.grid(row=0, column=1, sticky="ew", padx=(6, 20))
 
@@ -79,7 +79,7 @@ class InvestorsFrame(tk.Frame):
         self.entry_phone = tk.Entry(form)
         self.entry_phone.grid(row=1, column=1, sticky="ew", padx=(6, 20))
 
-        tk.Label(form, text="BaÅŸlangÄ±Ã§ Sermayesi").grid(row=0, column=2, sticky="w")
+        tk.Label(form, text="Başlangıç Sermayesi").grid(row=0, column=2, sticky="w")
         self.entry_capital = tk.Entry(form)
         self.entry_capital.grid(row=0, column=3, sticky="ew", padx=(6, 20))
 
@@ -116,7 +116,7 @@ class InvestorsFrame(tk.Frame):
         sep = ttk.Separator(tab_tx, orient="horizontal")
         sep.pack(fill="x", padx=20, pady=(6, 6))
 
-        tk.Label(tab_tx, text="YatÄ±rÄ±mcÄ± Ä°ÅŸlemleri", font='TkHeadingFont').pack(anchor="w", padx=20)
+        tk.Label(tab_tx, text="Yatırımcı İşlemleri", font='TkHeadingFont').pack(anchor="w", padx=20)
         tx_form = tk.Frame(tab_tx)
         tx_form.pack(fill="x", padx=20)
         tk.Label(tx_form, text="Tarih").grid(row=0, column=0, sticky="w")
@@ -508,6 +508,5 @@ class InvestorsFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh()
-
 
 

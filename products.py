@@ -16,7 +16,7 @@ class ProductsFrame(tk.Frame):
         header.pack(fill='x')
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="ÃœrÃ¼n YÃ¶netimi", font='TkHeadingFont').pack(side='left', pady=(16,6))
+        tk.Label(header, text="Ürün Yönetimi", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Search
         search_bar = tk.Frame(self)
@@ -35,7 +35,7 @@ class ProductsFrame(tk.Frame):
         columns = ("id", "name", "barcode", "price", "cost", "stock", "unit")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
         self.tree.heading("id", text="ID")
-        self.tree.heading("name", text="Ä°sim")
+        self.tree.heading("name", text="İsim")
         self.tree.heading("barcode", text="Barkod")
         self.tree.heading("price", text="Fiyat")
         self.tree.heading("cost", text="Maliyet")
@@ -51,7 +51,7 @@ class ProductsFrame(tk.Frame):
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         self.tree.pack(fill="both", expand=False, padx=20, pady=(6, 0))
 
-        # Form (outlined and compact) â€“ order: Barcode, Name, Cost, Price, Unit, Stock
+        # Form (outlined and compact) – order: Barcode, Name, Cost, Price, Unit, Stock
         form_wrap = tk.Frame(self, bd=0, highlightthickness=1, highlightbackground='#888', bg=tinted_bg(self, 0.07))
         form_wrap.pack(fill="x", padx=20, pady=10)
         form = tk.Frame(form_wrap, bd=0, bg=form_wrap.cget('bg'))
@@ -61,8 +61,8 @@ class ProductsFrame(tk.Frame):
         tk.Label(form, text="Barkod", bg=form.cget('bg')).grid(row=0, column=0, sticky="w")
         self.entry_barcode = tk.Entry(form)
         self.entry_barcode.grid(row=0, column=1, sticky="ew", padx=(6, 16))
-        # ÃœrÃ¼n adÄ±
-        tk.Label(form, text="Ä°sim", bg=form.cget('bg')).grid(row=0, column=2, sticky="w")
+        # Ürün adı
+        tk.Label(form, text="İsim", bg=form.cget('bg')).grid(row=0, column=2, sticky="w")
         self.entry_name = tk.Entry(form)
         self.entry_name.grid(row=0, column=3, sticky="ew", padx=(6, 16))
         # Maliyet
@@ -73,7 +73,7 @@ class ProductsFrame(tk.Frame):
         tk.Label(form, text="Fiyat", bg=form.cget('bg')).grid(row=0, column=6, sticky="w")
         self.entry_price = tk.Entry(form)
         self.entry_price.grid(row=0, column=7, sticky="ew", padx=(6, 16))
-        # Birim (alt satÄ±r) â€“ combobox daha dar
+        # Birim (alt satır) – combobox daha dar
         tk.Label(form, text="Birim", bg=form.cget('bg')).grid(row=1, column=0, sticky="w", pady=(8,0))
         self.combo_unit = ttk.Combobox(form, values=["adet", "kg", "lt", "paket"], state="readonly", width=8)
         self.combo_unit.set("adet")
@@ -100,7 +100,7 @@ class ProductsFrame(tk.Frame):
         self.refresh()
 
     def on_show(self, **kwargs) -> None:
-        self.controller.title("Kooperatif - ÃœrÃ¼n YÃ¶netimi")
+        self.controller.title("Kooperatif - Ürün Yönetimi")
         try:
             # Reset inputs
             for w in (getattr(self, 'entry_search', None), getattr(self, 'entry_name', None), getattr(self, 'entry_barcode', None), getattr(self, 'entry_price', None), getattr(self, 'entry_stock', None), getattr(self, 'entry_cost', None)):
@@ -211,7 +211,7 @@ class ProductsFrame(tk.Frame):
         unit = (self.combo_unit.get() or "adet").strip()
 
         if not name:
-            messagebox.showwarning("Eksik bilgi", "Ä°sim gerekli.")
+            messagebox.showwarning("Eksik bilgi", "İsim gerekli.")
             return
         try:
             conn = sqlite3.connect(DB_NAME)
@@ -222,7 +222,7 @@ class ProductsFrame(tk.Frame):
             )
             conn.commit()
         except sqlite3.IntegrityError:
-            messagebox.showerror("Hata", "Barkod benzersiz olmalÄ±dÄ±r.")
+            messagebox.showerror("Hata", "Barkod benzersiz olmalıdır.")
         finally:
             conn.close()
             self.refresh()
@@ -230,7 +230,7 @@ class ProductsFrame(tk.Frame):
     def update_product(self) -> None:
         pid = self._selected_id()
         if pid is None:
-            messagebox.showinfo("SeÃ§im yok", "GÃ¼ncellenecek Ã¼rÃ¼nÃ¼ seÃ§in.")
+            messagebox.showinfo("Seçim yok", "Güncellenecek ürünü seçin.")
             return
         name = self.entry_name.get().strip()
         barcode = self.entry_barcode.get().strip() or None
@@ -277,5 +277,4 @@ class ProductsFrame(tk.Frame):
     def clear_search(self) -> None:
         self.entry_search.delete(0, tk.END)
         self.refresh()
-
 

@@ -45,6 +45,26 @@ class SalesFrame(tk.Frame):
         tk.Label(sb, text="Barkod/İsim:").pack(side="left")
         self.entry_scan = tk.Entry(sb)
         self.entry_scan.pack(side="left", fill="x", expand=True, padx=(6, 6))
+        # Quick clear button for the scan/search box
+        try:
+            # Theme-friendly small clear button using ttk
+            self.btn_clear_scan = ttk.Button(sb, text='✖', command=self._clear_scan)
+            # Compact padding via a dedicated style so it blends with theme
+            try:
+                _st = ttk.Style(self)
+                # Tighter padding to keep total width around ~30px visually
+                _st.configure('Icon.TButton', padding=(4, 0), anchor='center', justify='center')
+                self.btn_clear_scan.configure(style='Icon.TButton')
+            except Exception:
+                pass
+            # Also constrain logical width to a small value
+            try:
+                self.btn_clear_scan.configure(width=2)
+            except Exception:
+                pass
+            self.btn_clear_scan.pack(side='left', padx=(0, 6))
+        except Exception:
+            pass
         tk.Label(sb, text="Adet/Miktar:").pack(side="left")
         # Numeric up-down for quantity
         # Use ttk.Spinbox to avoid odd first-click reversal seen with tk.Spinbox
@@ -631,6 +651,17 @@ class SalesFrame(tk.Frame):
         self._recalc_total()
         self.status_var.set("")
 
+    def _clear_scan(self) -> None:
+        try:
+            self.entry_scan.delete(0, tk.END)
+            self.entry_scan.focus_set()
+        except Exception:
+            pass
+        try:
+            self._hide_suggest()
+        except Exception:
+            pass
+
     def add_to_cart(self) -> None:
         query = self.entry_scan.get().strip()
         qty = self._parse_qty(self.entry_qty.get().strip() or "1")
@@ -639,7 +670,15 @@ class SalesFrame(tk.Frame):
             return
         prod = self._find_product(query)
         if not prod:
+            try:
+                messagebox.showwarning("Ürün bulunamadı", "Bu barkod/isim ile ürün bulunamadı.")
+            except Exception:
+                pass
             self.status_var.set("Ürün bulunamadı.")
+            try:
+                self._clear_scan()
+            except Exception:
+                pass
             return
         pid, name, barcode, price, stock, unit = prod
         if stock is None:
@@ -1309,7 +1348,15 @@ class ReturnFrame(tk.Frame):
             return
         prod = self._find_product(query)
         if not prod:
+            try:
+                messagebox.showwarning("Ürün bulunamadı", "Bu barkod/isim ile ürün bulunamadı.")
+            except Exception:
+                pass
             self.status_var.set("Ürün bulunamadı.")
+            try:
+                self._clear_scan()
+            except Exception:
+                pass
             return
         pid, name, barcode, price, stock, unit = prod
         if stock is None:

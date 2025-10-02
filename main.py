@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import tkinter.font as tkfont
 from typing import Dict, List, Optional, Type, Callable
+import unicodedata
 from members import MembersFrame
 from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action, fix_mojibake_text, create_card, refresh_card_tints, ensure_card_control_backgrounds, CARD_BG_LIGHT, CARD_BG_DARK, ThemeManager
 import sqlite3 as _sqlite3
@@ -33,25 +34,90 @@ try:
 except Exception:
     SettingsFrame = None  # type: ignore[assignment]
 
+def _norm_text(s: str) -> str:
+    try:
+        # Normalize accents (İ, ı, ş, ğ etc.) to ASCII where possible
+        n = unicodedata.normalize('NFKD', s)
+        n = ''.join(ch for ch in n if not unicodedata.combining(ch))
+        n = n.replace('İ', 'I').replace('ı', 'i')
+        return n.lower()
+    except Exception:
+        return (s or '').lower()
+
 def menu_key_from_label(label: str) -> str:
     low = (label or '').lower()
-    if 'üye' in low or 'uye' in low:
+    nn = _norm_text(label or '')
+    if 'üye' in low or 'uye' in low or 'uye' in nn:
         return 'members'
-    if 'ür' in low or 'urun' in low or 'prod' in low:
+    if 'ür' in low or 'urun' in low or 'prod' in low or 'urun' in nn:
         return 'products'
-    if 'sat' in low and 'iade' not in low:
+    if 'sat' in low and ('iade' not in low and 'i̇ade' not in low):
         return 'sale'
-    if 'iade' in low:
+    if 'iade' in low or 'iade' in nn:
         return 'return'
-    if 'gelir' in low or 'gider' in low or 'ledger' in low:
+    if 'gelir' in low or 'gider' in low or 'ledger' in low or 'gelir' in nn or 'gider' in nn:
         return 'ledger'
-    if 'yat' in low:
+    if 'yat' in low or 'yati' in nn:
         return 'investors'
-    if 'rapor' in low:
+    if 'rapor' in low or 'rapor' in nn:
         return 'reports'
-    if 'ayar' in low:
+    if 'ayar' in low or 'ayar' in nn or 'settings' in nn:
         return 'settings'
     return low.replace(' ', '_')
+
+# Unified main action list and handlers
+def get_main_actions() -> List[str]:
+    return [
+        "Üye yönetimi",
+        "Ürün yönetimi",
+        "Yeni satış",
+        "İade işlemi",
+        "Gelir/Gider kaydı",
+        "Yatırımcılar",
+        "Raporlar",
+        "Ayarlar",
+    ]
+
+def build_main_handlers(controller: 'App') -> Dict[str, Callable[[], None]]:
+    handlers: Dict[str, Callable[[], None]] = {}
+    # Members
+    handlers["Üye yönetimi"] = (lambda: controller.show_frame(MembersFrame)) if 'MembersFrame' in globals() and MembersFrame is not None else (lambda: controller.show_placeholder("Üye yönetimi"))
+    # Products
+    if ProductsFrame is not None:
+        handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
+    else:
+        handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
+    # Sales
+    if SalesFrame is not None:
+        handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
+    else:
+        handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
+    # Returns
+    if 'ReturnFrame' in globals() and ReturnFrame is not None:
+        handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
+    else:
+        handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
+    # Ledger
+    if LedgerFrame is not None:
+        handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
+    else:
+        handlers["Gelir/Gider kaydı"] = lambda: controller.show_placeholder("Gelir/Gider kaydı")
+    # Investors
+    if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
+        handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
+    else:
+        handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
+    # Reports
+    if ReportsFrame is not None:
+        handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
+    else:
+        handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
+    # Settings
+    if SettingsFrame is not None:
+        handlers["Ayarlar"] = lambda: controller.show_frame(SettingsFrame)  # type: ignore[arg-type]
+    else:
+        handlers["Ayarlar"] = lambda: controller.show_placeholder("Ayarlar")
+    return handlers
 
 def default_allowed_by_role(role: str) -> set[str]:
     r = (role or '').lower()
@@ -931,6 +997,7 @@ class RoleFrame(tk.Frame):
             self.grid_frame.pack(padx=16, pady=10, fill='both', expand=True)
 
             self._buttons: List[tk.Widget] = []
+            self._layout_ready = False
             ui_scale = getattr(controller, "ui_scale", 1.0)
             for action in actions:
                 handler = None
@@ -946,6 +1013,11 @@ class RoleFrame(tk.Frame):
                     icon, short = _icon_for_action(str(action))  # type: ignore[attr-defined]
                 except Exception:
                     icon, short = "", str(action)
+                # Permission key derived from original action label
+                try:
+                    key = menu_key_from_label(str(action))
+                except Exception:
+                    key = None
                 # Create MenuTile instead of tk.Button, pass scale
                 tile = MenuTile(
                     self.grid_frame,
@@ -954,6 +1026,11 @@ class RoleFrame(tk.Frame):
                     command=handler,
                     scale=ui_scale
                 )
+                try:
+                    if key:
+                        tile._menu_key = key  # ensure consistent key for visibility checks
+                except Exception:
+                    pass
                 self._buttons.append(tile)
 
             self._current_cols = 0
@@ -968,22 +1045,10 @@ class RoleFrame(tk.Frame):
                     return 2
                 return 1
 
-            def _layout(cols: int) -> None:
-                # Clear old grid configs
-                for i in range(0, 8):
-                    try:
-                        self.grid_frame.grid_columnconfigure(i, weight=0)
-                    except Exception:
-                        pass
-                # Place tiles
-                for idx, tile in enumerate(self._buttons):
-                    r, c = divmod(idx, cols)
-                    tile.grid(row=r, column=c, padx=10, pady=10, sticky='nsew')
-                for c in range(cols):
-                    self.grid_frame.grid_columnconfigure(c, weight=1)
-
             def _on_resize(_e=None):
                 try:
+                    if not getattr(self, '_layout_ready', False):
+                        return
                     w = self.grid_frame.winfo_width()
                     if w <= 1:
                         # Use requested width before first layout
@@ -993,10 +1058,14 @@ class RoleFrame(tk.Frame):
                 cols = _desired_cols(int(w))
                 if cols != self._current_cols:
                     self._current_cols = cols
-                    _layout(cols)
+                # Always relayout visible (allowed) tiles on resize
+                try:
+                    allowed = getattr(self, '_current_allowed', None)
+                except Exception:
+                    allowed = None
+                self._relayout_visible_tiles(allowed)
 
-            # Initial layout, then reflow on resize
-            self.after(0, _on_resize)
+            # Reflow on resize; initial layout is handled in on_show
             self.bind('<Configure>', _on_resize)
 
         # Removed bottom-placed logout; now shown next to username
@@ -1114,10 +1183,18 @@ class RoleFrame(tk.Frame):
         # Apply per-user permissions by hiding disallowed tiles
         try:
             allowed = getattr(self.controller, 'user_permissions', None)
+            try:
+                self._current_allowed = allowed
+            except Exception:
+                pass
             if hasattr(self, '_buttons') and self._buttons:
                 for btn in self._buttons:
                     key = getattr(btn, '_menu_key', None)
                     ok = True if allowed is None else (key in allowed)
+                    try:
+                        print(f"[perm] tile key={key} allowed={ok}")
+                    except Exception:
+                        pass
                     try:
                         if ok:
                             btn.grid()  # ensure visible
@@ -1125,8 +1202,9 @@ class RoleFrame(tk.Frame):
                             btn.grid_remove()
                     except Exception:
                         pass
-                # Relayout visible tiles to remove gaps
+                # Make layout active and relayout visible tiles to remove gaps
                 try:
+                    self._layout_ready = True
                     self._relayout_visible_tiles(allowed)
                 except Exception:
                     pass
@@ -1138,7 +1216,7 @@ class RoleFrame(tk.Frame):
                             k = getattr(btn, '_menu_key', None)
                             if k:
                                 vis.append(k)
-                    print(f"[perm] visible_menus={sorted(vis)}")
+                    # print(f"[perm] visible_menus={sorted(vis)}")
                 except Exception:
                     pass
         except Exception:
@@ -1205,154 +1283,39 @@ class RoleFrame(tk.Frame):
 
 class AdminFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = [
-            "Üye yönetimi",
-            "Ürün yönetimi",
-            "Yeni satış",
-            "İade işlemi",
-            "Gelir/Gider kaydı",
-            "Yatırımcılar",
-            "Raporlar",
-            "Ayarlar",
-        ]
-        handlers: Dict[str, Callable[[], None]] = {
-            "Üye yönetimi": lambda: controller.show_frame(MembersFrame),
-        }
-        # Add product management if available
-        if ProductsFrame is not None:
-            handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
-        # Sales
-        if SalesFrame is not None:
-            handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
-        # Returns
-        if 'ReturnFrame' in globals() and ReturnFrame is not None:
-            handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
-        else:
-            handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
-        # Ledger (income/outcome)
-        if LedgerFrame is not None:
-            handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Gelir/Gider kaydı"] = lambda: controller.show_placeholder("Gelir/Gider kaydı")
-        # Investors
-        if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
-            handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
-        # Ensure Investors tab opens even if class failed to import at startup
-        def _show_investors():
-            try:
-                from investors import InvestorsFrame as _IF  # type: ignore
-                controller.show_frame(_IF)  # type: ignore[arg-type]
-            except Exception:
-                controller.show_placeholder("Yatırımcılar")
-        handlers["Yatırımcılar"] = _show_investors
-        # Reports
-        # Ensure Investors menu opens even with encoding/import issues
-        def _open_investors():
-            try:
-                from investors import InvestorsFrame as _IF  # type: ignore
-                controller.show_frame(_IF)  # type: ignore[arg-type]
-            except Exception:
-                controller.show_placeholder("Yatırımcılar")
-        try:
-            for _k in list(actions):
-                if isinstance(_k, str) and 'yat' in _k.lower():
-                    handlers[_k] = _open_investors
-        except Exception:
-            pass
-
-        if ReportsFrame is not None:
-            handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
-        if SettingsFrame is not None:
-            handlers["Ayarlar"] = lambda: controller.show_frame(SettingsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Ayarlar"] = lambda: controller.show_placeholder("Ayarlar")
+        actions = get_main_actions()
+        handlers = build_main_handlers(controller)
         super().__init__(parent, controller, "Admin Panel", actions, handlers)
 
 
 class CashierFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
         description = "Barkod okutun ve işlemleri tamamlayın."
-        actions = ["Yeni satış", "İade işlemi"]
-        handlers: Dict[str, Callable[[], None]] = {}
-        # Menüler artık sadece DB yetkilerine göre filtrelenecek; burada
-        # hiçbirini zorla çıkarmıyoruz.
-        if SalesFrame is not None:
-            handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
-        # Keep returns as placeholder for now
-        if 'ReturnFrame' in globals() and ReturnFrame is not None:
-            handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
-        else:
-            handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
+        actions = get_main_actions()
+        handlers = build_main_handlers(controller)
         super().__init__(parent, controller, "Kasiyer Ekranı", actions, handlers, description)
 
 
 class AccountingFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = ["Gelir girişi", "Gider girişi", "Bilanço"]
-        super().__init__(parent, controller, "Muhasebe Paneli", actions)
+        actions = get_main_actions()
+        handlers = build_main_handlers(controller)
+        super().__init__(parent, controller, "Muhasebe Paneli", actions, handlers)
 
 
 class MemberFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
         description = "Kârdan düşen payınızı ve geçmiş işlemleri inceleyin."
-        actions = ["Pay görüntüle", "Ekstre al"]
-        super().__init__(parent, controller, "Üye Paneli", actions, None, description)
+        actions = get_main_actions()
+        handlers = build_main_handlers(controller)
+        super().__init__(parent, controller, "Üye Paneli", actions, handlers, description)
 
 
 class ManagerFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        actions = [
-            "Ürün yönetimi",
-            "Yeni satış",
-            "İade işlemi",
-            "Gelir/Gider kaydı",
-            "Yatırımcılar",
-            "Raporlar",
-            "Ayarlar",
-        ]
-        handlers: Dict[str, Callable[[], None]] = {}
-        if ProductsFrame is not None:
-            handlers["Ürün yönetimi"] = lambda: controller.show_frame(ProductsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Ürün yönetimi"] = lambda: controller.show_placeholder("Ürün yönetimi")
-        # Sales
-        if SalesFrame is not None:
-            handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Yeni satış"] = lambda: controller.show_placeholder("Yeni satış")
-        # Returns
-        if 'ReturnFrame' in globals() and ReturnFrame is not None:
-            handlers["İade işlemi"] = lambda: controller.show_frame(ReturnFrame)  # type: ignore[arg-type]
-        else:
-            handlers["İade işlemi"] = lambda: controller.show_placeholder("İade işlemi")
-        if LedgerFrame is not None:
-            handlers["Gelir/Gider kaydı"] = lambda: controller.show_frame(LedgerFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Gelir/Gider kaydı"] = lambda: controller.show_placeholder("Gelir/Gider kaydı")
-        if 'InvestorsFrame' in globals() and InvestorsFrame is not None:
-            handlers["Yatırımcılar"] = lambda: controller.show_frame(InvestorsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Yatırımcılar"] = lambda: controller.show_placeholder("Yatırımcılar")
-       
-
-        if ReportsFrame is not None:
-            handlers["Raporlar"] = lambda: controller.show_frame(ReportsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Raporlar"] = lambda: controller.show_placeholder("Raporlar")
-        if SettingsFrame is not None:
-            handlers["Ayarlar"] = lambda: controller.show_frame(SettingsFrame)  # type: ignore[arg-type]
-        else:
-            handlers["Ayarlar"] = lambda: controller.show_placeholder("Ayarlar")
+        actions = get_main_actions()
+        handlers = build_main_handlers(controller)
+        super().__init__(parent, controller, "Yönetici Paneli", actions, handlers)
         super().__init__(parent, controller, "Yönetici Paneli", actions, handlers)
 
 

@@ -94,6 +94,11 @@ class MembersFrame(tk.Frame):
                 row += 1
         self.btn_save_perms = ttk.Button(perm_box, text="Yetkileri Kaydet", command=self.save_permissions)
         self.btn_save_perms.grid(row=row+1, column=0, sticky='w', padx=8, pady=(6, 4))
+        # Start disabled until a user is selected
+        try:
+            self._set_perm_controls_enabled(False)
+        except Exception:
+            pass
 
         self.refresh_users()
 
@@ -144,6 +149,12 @@ class MembersFrame(tk.Frame):
         self.controller.title("Kooperatif - Uye Yonetimi")
         self.refresh_users()
         self.refresh_style()
+        # Ensure controls are disabled when nothing is selected
+        try:
+            if not self.tree.selection():
+                self._set_perm_controls_enabled(False)
+        except Exception:
+            pass
 
     def refresh_users(self) -> None:
         for row in self.tree.get_children():
@@ -165,6 +176,10 @@ class MembersFrame(tk.Frame):
     def on_select(self, _event=None) -> None:
         sel = self.tree.selection()
         if not sel:
+            try:
+                self._set_perm_controls_enabled(False)
+            except Exception:
+                pass
             return
         _id, uname, role = self.tree.item(sel[0], "values")
         self.entry_username.delete(0, tk.END)
@@ -272,6 +287,10 @@ class MembersFrame(tk.Frame):
         conn.commit()
         conn.close()
         self.refresh_users()
+        try:
+            self._set_perm_controls_enabled(False)
+        except Exception:
+            pass
 
     # --- Permissions helpers ---
     def _default_allowed_by_role(self, role: str):

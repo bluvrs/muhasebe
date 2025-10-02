@@ -367,7 +367,10 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     style.map('TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
     style.configure('TNotebook', background=bg)
     style.configure('TNotebook.Tab', background=accent, foreground=fg)
-    style.map('TNotebook.Tab', background=[('selected', bg)])
+    # Ensure selected tab foreground also updates (avoid white-on-white when
+    # switching from dark to light)
+    style.map('TNotebook.Tab', background=[('selected', bg)],
+                                   foreground=[('selected', fg), ('!selected', fg)])
     style.configure('Treeview', background=accent, fieldbackground=accent, foreground=fg)
     style.map('Treeview', background=[('selected', sel_bg)], foreground=[('selected', sel_fg)])
     style.configure('Treeview.Heading', background='#333333', foreground=fg)
@@ -498,7 +501,10 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
         style.map('TButton', background=[('active', btn_bg_active)], foreground=[('active', btn_fg)], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
     style.configure('TNotebook', background=bg)
     style.configure('TNotebook.Tab', background=accent, foreground=fg)
-    style.map('TNotebook.Tab', background=[('selected', bg)])
+    # On light theme, force selected tab text to dark fg; also set default
+    # non-selected to fg to overwrite any previous theme map from dark mode.
+    style.map('TNotebook.Tab', background=[('selected', bg)],
+                                   foreground=[('selected', fg), ('!selected', fg)])
     style.configure('Treeview', background='#ffffff', fieldbackground='#ffffff', foreground=fg)
     style.map('Treeview', background=[('selected', sel_bg)], foreground=[('selected', sel_fg)])
     style.configure('Treeview.Heading', background=accent, foreground=fg)
