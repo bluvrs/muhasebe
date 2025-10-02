@@ -82,6 +82,11 @@ class SettingsFrame(tk.Frame):
         self.var_dark = tk.BooleanVar(value=False)
         self.theme_checkbox = tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
         self.theme_checkbox.pack(anchor='center', pady=(6, 0))
+        # Replace restart prompt with info-only behavior
+        try:
+            self.theme_checkbox.configure(command=self._on_theme_toggle_no_prompt)
+        except Exception:
+            pass
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
 
@@ -361,6 +366,48 @@ class SettingsFrame(tk.Frame):
                 except Exception:
                     pass
                 self.status_var.set("Tema uygulandı (yeniden başlatmadan).")
+        except Exception:
+            pass
+    
+    def _on_theme_toggle_no_prompt(self) -> None:
+        # Save theme and apply live; show info that full effect is on restart
+        theme_key = 'dark' if self.var_dark.get() else 'light'
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            cur.execute(
+                "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                ('ui_theme', theme_key),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+        try:
+            try:
+                scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
+            except Exception:
+                scale_val = getattr(self.controller, 'saved_scale', 1.5)
+            try:
+                base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
+            except Exception:
+                base_pt = getattr(self.controller, 'saved_base_pt', 12)
+            apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
+            if hasattr(self.controller, 'refresh_theme'):
+                self.controller.refresh_theme()
+            try:
+                self.controller.saved_theme = theme_key
+                self.controller.saved_scale = float(scale_val)
+                self.controller.ui_scale = float(scale_val)
+                self.controller.saved_base_pt = int(base_pt)
+            except Exception:
+                pass
+            try:
+                messagebox.showinfo("Tema", "Tema değiştirildi. Temanız uygulamayı yeniden başlattığınızda tam olarak uygulanacaktır.")
+            except Exception:
+                pass
+            self.status_var.set("Tema kaydedildi. Yeniden başlatınca tam uygulanır.")
         except Exception:
             pass
     def _init_theme_list(self) -> None:

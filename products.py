@@ -92,7 +92,7 @@ class ProductsFrame(tk.Frame):
         btns.pack(fill="x", padx=20, pady=(0, 10))
         self.btn_add = ttk.Button(btns, text="Ekle", command=self.add_product)
         self.btn_add.pack(side="left")
-        self.btn_update = ttk.Button(btns, text="Guncelle", command=self.update_product)
+        self.btn_update = ttk.Button(btns, text="Güncelle", command=self.update_product)
         self.btn_update.pack(side="left", padx=8)
         self.btn_delete = ttk.Button(btns, text="Sil", command=self.delete_product)
         self.btn_delete.pack(side="left")
@@ -277,4 +277,5 @@ class ProductsFrame(tk.Frame):
     def clear_search(self) -> None:
         self.entry_search.delete(0, tk.END)
         self.refresh()
+
 
