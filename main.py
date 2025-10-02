@@ -1,4 +1,6 @@
 import sqlite3
+import os
+import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 import tkinter.font as tkfont
@@ -302,6 +304,26 @@ def init_db() -> None:
 class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
+        # Set window icon for packaged exe as well as dev run
+        try:
+            def _res_path(name: str) -> str:
+                base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+                return os.path.join(base, name)
+            ico = _res_path('app.ico')
+            if os.path.exists(ico):
+                try:
+                    self.iconbitmap(default=ico)  # Works on Windows
+                except Exception:
+                    pass
+            # If a PNG icon is available, set it for platforms where ico is ignored (macOS/Linux)
+            png = _res_path('app.png')
+            if os.path.exists(png):
+                try:
+                    self.iconphoto(True, tk.PhotoImage(file=png))
+                except Exception:
+                    pass
+        except Exception:
+            pass
         # --- MenuButtonFont and style ---
         try:
             base_family = tkfont.nametofont("TkDefaultFont").actual("family")
