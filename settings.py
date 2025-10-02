@@ -12,6 +12,60 @@ import sys
 DB_NAME = "coop.db"
 
 
+class IOSSwitch(tk.Frame):
+    """Minimal iOS‑style switch built on a Canvas.
+    variable: tk.BooleanVar; command: callable; bg: parent bg.
+    """
+    def __init__(self, parent, variable: tk.BooleanVar, command=None, bg: str | None = None):
+        super().__init__(parent, bd=0, highlightthickness=0, bg=bg or (parent.cget('bg') if hasattr(parent,'cget') else '#fff'))
+        self.var = variable
+        self.command = command
+        self.canvas = tk.Canvas(self, width=56, height=30, bd=0, highlightthickness=0, bg=self.cget('bg'))
+        self.canvas.pack()
+        self.canvas.bind('<Button-1>', self._toggle)
+        try:
+            self.var.trace_add('write', lambda *a: self.redraw())
+        except Exception:
+            pass
+        self.redraw()
+
+    def set_bg(self, color: str) -> None:
+        try:
+            self.configure(bg=color)
+            self.canvas.configure(bg=color)
+        except Exception:
+            pass
+        self.redraw()
+
+    def _toggle(self, _e=None):
+        try:
+            self.var.set(not bool(self.var.get()))
+        except Exception:
+            pass
+        try:
+            if callable(self.command):
+                self.command()
+        except Exception:
+            pass
+        self.redraw()
+
+    def redraw(self) -> None:
+        on = bool(self.var.get())
+        w, h, r = 56, 30, 14
+        track_on, track_off, knob = '#34C759', '#d5d5d5', '#ffffff'
+        try:
+            self.canvas.delete('all')
+            x0, y0, x1, y1 = 2, 2, w-2, h-2
+            color = track_on if on else track_off
+            self.canvas.create_oval(x0, y0, y0+2*r, y0+2*r, fill=color, outline=color)
+            self.canvas.create_oval(x1-2*r, y0, x1, y0+2*r, fill=color, outline=color)
+            self.canvas.create_rectangle(x0+r, y0, x1-r, y0+2*r, fill=color, outline=color)
+            kx = x1 - r - 2 if on else x0 + r + 2
+            self.canvas.create_oval(kx-r, y0, kx+r, y0+2*r, fill=knob, outline='#cccccc')
+        except Exception:
+            pass
+
+
 class SettingsFrame(tk.Frame):
     def __init__(self, parent: tk.Misc, controller) -> None:
         super().__init__(parent)
@@ -80,8 +134,11 @@ class SettingsFrame(tk.Frame):
         tint_theme = theme_inner.cget('bg')
         tk.Label(theme_inner, text="Tema", font='TkHeadingFont', bg=tint_theme).pack(anchor='center')
         self.var_dark = tk.BooleanVar(value=False)
-        self.theme_checkbox = tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
-        self.theme_checkbox.pack(anchor='center', pady=(6, 0))
+        sw_row = tk.Frame(theme_inner, bg=tint_theme)
+        sw_row.pack(anchor='center', pady=(6, 0))
+        tk.Label(sw_row, text="Koyu Tema", bg=tint_theme).pack(side='left', padx=(0, 8))
+        self.theme_switch = IOSSwitch(sw_row, variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
+        self.theme_switch.pack(side='left')
         # Tema değişimini anında uygula (yeniden başlatma gerekmez)
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
@@ -586,8 +643,17 @@ class SettingsFrame(tk.Frame):
         os._exit(0)
 
     def _set_theme_var_safely(self, value: bool):
+        # Prevent triggering on_theme_toggle while updating programmatically
         try:
-            self.theme_checkbox.configure(command=None)
+            self._suspend_theme_toggle = True
+        except Exception:
+            pass
+        try:
             self.var_dark.set(value)
+            if hasattr(self, 'theme_switch'):
+                self.theme_switch.redraw()
         finally:
-            self.theme_checkbox.configure(command=self.on_theme_toggle)
+            try:
+                self._suspend_theme_toggle = False
+            except Exception:
+                pass
