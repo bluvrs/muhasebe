@@ -22,6 +22,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# --- Version helpers ---
+function Update-VersionFile {
+    $verPath = Join-Path (Get-Location) 'VERSION.txt'
+    if (-not (Test-Path $verPath)) {
+        '1.00' | Out-File -FilePath $verPath -Encoding UTF8 -Force
+    }
+    try {
+        $cur = (Get-Content -Path $verPath -ErrorAction Stop | Select-Object -First 1).Trim()
+        if (-not $cur) { $cur = '1.00' }
+    } catch { $cur = '1.00' }
+    # Parse and bump by 0.01
+    try {
+        $dec = [decimal]::Parse($cur, [System.Globalization.CultureInfo]::InvariantCulture)
+        $dec = $dec + 0.01
+        $new = $dec.ToString('0.00', [System.Globalization.CultureInfo]::InvariantCulture)
+    } catch {
+        $new = '1.00'
+    }
+    $new | Out-File -FilePath $verPath -Encoding UTF8 -Force
+    Write-Host "[i] Version bumped: $cur -> $new" -ForegroundColor DarkCyan
+    return $new
+}
+
 # Resolve Python launcher (python, py -3, or py)
 $Global:PythonLauncher = $null  # e.g. @('python') or @('py','-3')
 function Resolve-Python {
@@ -198,6 +221,10 @@ function New-Exe {
     if (Test-Path 'Roboto') {
         $commonArgs += @('--add-data','Roboto;Roboto')
     }
+    # Include VERSION.txt so app can read runtime version
+    if (Test-Path 'VERSION.txt') {
+        $commonArgs += @('--add-data','VERSION.txt;VERSION.txt')
+    }
 
     # Ensure all local scripts (modules) are included (hidden imports)
     try {
@@ -272,6 +299,8 @@ try {
     $venvPy = Join-Path $VenvDir 'Scripts\python'
     & $venvPy -m pip --version > $null 2>&1
     Install-Tools -VenvDir $VenvDir -Win7Compat:$Win7Compat
+    # Bump version file
+    $version = Update-VersionFile
     $buildArch = if ($detectedArch -ne 'unknown') { $detectedArch } else { $Arch }
     Write-Host ("[i] Requested Arch={0}; Using Python={1} ({2})" -f $Arch,$detectedArch,$pyPath) -ForegroundColor DarkCyan
     New-Exe -VenvDir $VenvDir -BuildArch $buildArch
@@ -280,5 +309,4 @@ try {
     Write-Host "[x] Build failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
-
 

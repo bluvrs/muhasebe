@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import sys
+from datetime import datetime
 import tkinter as tk
 from tkinter import messagebox, ttk
 import tkinter.font as tkfont
@@ -136,6 +137,28 @@ def default_allowed_by_role(role: str) -> set[str]:
     return {'members','products','sale','return','ledger','investors','reports','settings'}
 
 DB_NAME = "coop.db"
+
+# App metadata
+APP_NAME = 'Kooperatif'
+APP_VERSION = '1.00'
+
+def resource_path(name: str) -> str:
+    try:
+        base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    except Exception:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, name)
+
+# Try to read version from VERSION.txt (packaged via PyInstaller)
+try:
+    vfile = resource_path('VERSION.txt')
+    if os.path.exists(vfile):
+        with open(vfile, 'r', encoding='utf-8', errors='ignore') as f:
+            ver = f.readline().strip()
+            if ver:
+                APP_VERSION = ver
+except Exception:
+    pass
 
 
 # --- Database Setup ---
@@ -351,6 +374,21 @@ class App(tk.Tk):
         self.minsize(800, 600)
         # Start maximized when the app launches
         self._maximize_startup()
+        # Top menu bar with Help > About
+        try:
+            menubar = tk.Menu(self)
+            helpm = tk.Menu(menubar, tearoff=False)
+            helpm.add_command(label='Hakkında…', command=self.show_about)
+            menubar.add_cascade(label='Yardım', menu=helpm)
+            self.config(menu=menubar)
+            self._menubar = menubar  # type: ignore[attr-defined]
+            # F1 shows About
+            try:
+                self.bind_all('<F1>', lambda _e: self.show_about())
+            except Exception:
+                pass
+        except Exception:
+            pass
         # Apply font scaling only (no tk scaling), then theme
         try:
             scale, theme, base_pt = self._load_ui_settings()
@@ -436,6 +474,99 @@ class App(tk.Tk):
         try:
             import sys
             print("[warn] safe_noop invoked; ignoring.", file=sys.stderr)
+        except Exception:
+            pass
+
+    def show_about(self) -> None:
+        """Custom About dialog with clickable URL; no wrapping."""
+        try:
+            import webbrowser, tkinter as _tk
+            # Close previous if any
+            try:
+                if hasattr(self, '_about_win') and self._about_win.winfo_exists():  # type: ignore[attr-defined]
+                    self._about_win.destroy()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            top = _tk.Toplevel(self)
+            self._about_win = top  # type: ignore[attr-defined]
+            top.title('Hakkında')
+            top.transient(self)
+            top.resizable(True, False)  # genişletilebilir (yatay)
+            # Try to copy app icon to dialog
+            try:
+                png = None
+                try:
+                    import os, sys
+                    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+                    png = os.path.join(base, 'app.png')
+                except Exception:
+                    png = None
+                if png and os.path.exists(png):
+                    top.iconphoto(True, _tk.PhotoImage(file=png))
+            except Exception:
+                pass
+            # Content
+            container = _tk.Frame(top, padx=18, pady=14)
+            container.pack(fill='both', expand=True)
+            # Try to show app icon inside dialog (left side)
+            icon_row = _tk.Frame(container)
+            icon_row.pack(anchor='w', fill='x')
+            try:
+                img = None
+                if png and os.path.exists(png):
+                    img = _tk.PhotoImage(file=png)
+                if img is not None:
+                    lbl_img = _tk.Label(icon_row, image=img)
+                    lbl_img.image = img  # keep ref
+                    lbl_img.pack(side='left', padx=(0, 12))
+            except Exception:
+                pass
+            # App name + version (slightly smaller than TkHeadingFont)
+            text_col = _tk.Frame(icon_row)
+            text_col.pack(side='left', anchor='w')
+            try:
+                import tkinter.font as tkfont
+                hf = tkfont.nametofont('TkHeadingFont')
+                sz = max(10, int(hf.actual('size')) - 2)
+                head_font = (hf.actual('family'), sz, 'bold')
+            except Exception:
+                head_font = 'TkHeadingFont'
+            _tk.Label(text_col, text=APP_NAME, font=head_font, anchor='w').pack(anchor='w')
+            _tk.Label(text_col, text=f'Sürüm: {APP_VERSION}', anchor='w').pack(anchor='w', pady=(2, 6))
+            # Build date/time from executable (frozen) or this file
+            try:
+                src = sys.executable if getattr(sys, 'frozen', False) else __file__
+                ts = os.path.getmtime(src)
+                built = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+            except Exception:
+                built = ''
+            if built:
+                _tk.Label(container, text=f'Yapım Tarihi: {built}', anchor='w').pack(anchor='w')
+            # Clickable link
+            url = 'https://murathodja.com'
+            link = _tk.Label(container, text=url, fg='#0a66c2', cursor='hand2', anchor='w')
+            link.pack(anchor='w', pady=(2, 6))
+            def _open(_e=None):
+                try:
+                    webbrowser.open(url)
+                except Exception:
+                    pass
+            link.bind('<Button-1>', _open)
+            # Copyright line
+            _tk.Label(container, text=f'© {datetime.now().year} murathodja.com', anchor='center', justify='center').pack(anchor='center', pady=(0, 6), fill='x')
+            # Close button
+            btn = _tk.Button(container, text='Kapat', command=top.destroy)
+            btn.pack(anchor='e', pady=(10, 0))
+            # Size/position
+            try:
+                top.update_idletasks()
+                w = max(420, top.winfo_reqwidth() + 40)
+                h = top.winfo_reqheight() + 20
+                x = max(0, self.winfo_rootx() + (self.winfo_width() - w)//2)
+                y = max(0, self.winfo_rooty() + (self.winfo_height() - h)//3)
+                top.geometry(f'{w}x{h}+{x}+{y}')
+            except Exception:
+                pass
         except Exception:
             pass
 
