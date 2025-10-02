@@ -1,7 +1,7 @@
 ﻿import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
-from ui import make_back_arrow, apply_theme, rounded_outline, smart_tinted_bg
+from ui import make_back_arrow, apply_theme, rounded_outline, smart_tinted_bg, create_card, refresh_card_tints, ensure_card_control_backgrounds
 from tkinter import ttk
 import os
 import shutil
@@ -19,8 +19,8 @@ class SettingsFrame(tk.Frame):
 
         header = tk.Frame(self)
         header.pack(fill='x')
-        back = make_back_arrow(header, self.go_back)
-        back.pack(side='left', padx=(10,6), pady=(10,6))
+        self.back_arrow = make_back_arrow(header, self.go_back)
+        self.back_arrow.pack(side='left', padx=(10,6), pady=(10,6))
         tk.Label(header, text="Ayarlar", font='TkHeadingFont').pack(side='left', pady=(16,6))
 
         # Tabs container
@@ -52,12 +52,11 @@ class SettingsFrame(tk.Frame):
                 card.configure(width=min_w, height=200)
         name_holder = tk.Frame(tab_name)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
-        name_card, name_inner = rounded_outline(name_holder, radius=12, padding=12, border='#888')
+        name_card, name_inner = create_card(name_holder, radius=12, padding=12, border='#888')
         self.name_card = name_card
         self.name_inner = name_inner
         name_card.pack(anchor='center', fill='x')
-        tint_name = smart_tinted_bg(self)
-        name_inner.configure(bg=tint_name)
+        tint_name = name_inner.cget('bg')
         tk.Label(name_inner, text="Okul adı (Rapor Başlığı)", font='TkHeadingFont', bg=tint_name).pack(anchor='center')
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
@@ -72,33 +71,27 @@ class SettingsFrame(tk.Frame):
         # === Theme Card (Tab 2) ===
         theme_holder = tk.Frame(tab_style)
         theme_holder.pack(fill='x', padx=20, pady=(4, 8))
-        theme_card, theme_inner = rounded_outline(theme_holder, radius=12, padding=12, border='#888')
+        theme_card, theme_inner = create_card(theme_holder, radius=12, padding=12, border='#888')
         self.theme_card = theme_card
         self.theme_inner = theme_inner
         theme_card.pack(anchor='center', fill='x')
-        tint_theme = smart_tinted_bg(self)
-        theme_inner.configure(bg=tint_theme)
+        tint_theme = theme_inner.cget('bg')
         tk.Label(theme_inner, text="Tema", font='TkHeadingFont', bg=tint_theme).pack(anchor='center')
         self.var_dark = tk.BooleanVar(value=False)
         self.theme_checkbox = tk.Checkbutton(theme_inner, text="Koyu Tema", variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
         self.theme_checkbox.pack(anchor='center', pady=(6, 0))
-        # Replace restart prompt with info-only behavior
-        try:
-            self.theme_checkbox.configure(command=self._on_theme_toggle_no_prompt)
-        except Exception:
-            pass
+        # Tema değişimini anında uygula (yeniden başlatma gerekmez)
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
 
         # === Scale Card (Tab 2) ===
         scale_holder = tk.Frame(tab_style)
         scale_holder.pack(fill='x', padx=20, pady=(4, 8))
-        scale_card, scale_inner = rounded_outline(scale_holder, radius=12, padding=12, border='#888')
+        scale_card, scale_inner = create_card(scale_holder, radius=12, padding=12, border='#888')
         self.scale_card = scale_card
         self.scale_inner = scale_inner
         scale_card.pack(anchor='center', fill='x')
-        tint_scale = smart_tinted_bg(self)
-        scale_inner.configure(bg=tint_scale)
+        tint_scale = scale_inner.cget('bg')
         tk.Label(scale_inner, text="Yazı Boyutu", font='TkHeadingFont', bg=tint_scale).pack(anchor='center')
         self.var_scale = tk.StringVar(value='2.0')
         # Place scale radios and base font spinbox side-by-side in a single row
@@ -112,7 +105,13 @@ class SettingsFrame(tk.Frame):
         row_base.pack(side='left', padx=(16, 0))
         tk.Label(row_base, text="Temel yazı boyutu (pt):", bg=tint_scale).pack(side='left')
         self.var_base_pt = tk.StringVar(value='12')
-        self.spin_base = tk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, command=self.on_base_pt_change)
+        try:
+            # Prefer ttk.Spinbox for better theming support
+            from tkinter import ttk as _ttk
+            self.spin_base = _ttk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, command=self.on_base_pt_change)
+        except Exception:
+            # Fallback to classic Spinbox
+            self.spin_base = tk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, command=self.on_base_pt_change)
         self.spin_base.pack(side='left', padx=(6, 0))
         self.spin_base.bind('<Return>', lambda _e: self.on_base_pt_change())
         _autosize_card(scale_card, scale_inner, min_w=560, pad=12, min_h=160)
@@ -122,12 +121,11 @@ class SettingsFrame(tk.Frame):
         # DB card centered and compact (just fits 3 buttons)
         db_holder = tk.Frame(tab_db)
         db_holder.pack(fill='x', padx=20, pady=(12,0))
-        db_card, db_inner = rounded_outline(db_holder, radius=12, padding=12, border='#888')
+        db_card, db_inner = create_card(db_holder, radius=12, padding=12, border='#888')
         self.db_card = db_card
         self.db_inner = db_inner
         db_card.pack(anchor='center', fill='x')
-        tint = smart_tinted_bg(self)
-        db_inner.configure(bg=tint)
+        tint = db_inner.cget('bg')
         # Title + buttons centered inside card
         tk.Label(db_inner, text="Veri Tabanı", font='TkHeadingFont', bg=tint).pack(pady=(2, 6), anchor='center')
         btn_row = tk.Frame(db_inner, bg=tint)
@@ -160,27 +158,8 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         try:
-            # Recompute tints for each card
-            for inner in [getattr(self, 'name_inner', None), getattr(self, 'theme_inner', None), getattr(self, 'scale_inner', None), getattr(self, 'db_inner', None)]:
-                if inner is None:
-                    continue
-                tint = smart_tinted_bg(self)
-                try:
-                    inner.configure(bg=tint)
-                except Exception:
-                    pass
-                # Update direct children that are classic Tk widgets to use the same bg
-                try:
-                    for ch in inner.winfo_children():
-                        try:
-                            # Only touch classic widgets; ttk widgets ignore bg
-                            cls = str(ch.winfo_class())
-                            if not cls.startswith('T'):
-                                ch.configure(bg=tint)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+            refresh_card_tints(self)
+            ensure_card_control_backgrounds(self)
         except Exception:
             pass
 
@@ -237,6 +216,14 @@ class SettingsFrame(tk.Frame):
                     pass
         try:
             _update_widget_style_recursive(self)
+        except Exception:
+            pass
+
+        # Refresh back arrow icon/colors to match new theme
+        try:
+            if hasattr(self, 'back_arrow') and self.back_arrow:
+                if hasattr(self.back_arrow, 'refresh_theme'):
+                    self.back_arrow.refresh_theme()
         except Exception:
             pass
 
@@ -311,9 +298,9 @@ class SettingsFrame(tk.Frame):
         self.status_var.set("Okul adı kaydedildi.")
 
     def on_theme_toggle(self) -> None:
-        # Persist and apply theme when the checkbox changes
+        # Temayı kaydet ve anında uygula (yeniden başlatma yok)
         theme_key = 'dark' if self.var_dark.get() else 'light'
-        # Save
+        # Kaydet
         try:
             conn = sqlite3.connect(DB_NAME)
             cur = conn.cursor()
@@ -326,46 +313,27 @@ class SettingsFrame(tk.Frame):
             conn.close()
         except Exception:
             pass
-        # Ask user to restart for full theme application
+        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme çağır
         try:
-            if messagebox.askyesno("Tema", "Tema değiştirildi. Uygulamayı yeniden başlatmak ister misiniz?"):
-                # Persist desired scale in memory to survive restart
-                try:
-                    scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
-                except Exception:
-                    scale_val = getattr(self.controller, 'saved_scale', 1.5)
-                try:
-                    base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
-                except Exception:
-                    base_pt = getattr(self.controller, 'saved_base_pt', 12)
-                try:
-                    self.controller.saved_theme = theme_key
-                    self.controller.saved_scale = float(scale_val)
-                    self.controller.saved_base_pt = int(base_pt)
-                except Exception:
-                    pass
-                self.restart_app()
-            else:
-                # Best-effort live apply without restart
-                try:
-                    scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
-                except Exception:
-                    scale_val = getattr(self.controller, 'saved_scale', 1.5)
-                try:
-                    base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
-                except Exception:
-                    base_pt = getattr(self.controller, 'saved_base_pt', 12)
-                apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
-                if hasattr(self.controller, 'refresh_theme'):
-                    self.controller.refresh_theme()
-                try:
-                    self.controller.saved_theme = theme_key
-                    self.controller.saved_scale = float(scale_val)
-                    self.controller.ui_scale = float(scale_val)
-                    self.controller.saved_base_pt = int(base_pt)
-                except Exception:
-                    pass
-                self.status_var.set("Tema uygulandı (yeniden başlatmadan).")
+            try:
+                scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
+            except Exception:
+                scale_val = getattr(self.controller, 'saved_scale', 1.5)
+            try:
+                base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
+            except Exception:
+                base_pt = getattr(self.controller, 'saved_base_pt', 12)
+            # Kaydı önce güncelle ki refresh_theme doğru temayı uygulasın
+            try:
+                self.controller.saved_theme = theme_key
+                self.controller.saved_scale = float(scale_val)
+                self.controller.ui_scale = float(scale_val)
+                self.controller.saved_base_pt = int(base_pt)
+            except Exception:
+                pass
+            if hasattr(self.controller, 'refresh_theme'):
+                self.controller.refresh_theme()
+            self.status_var.set("Tema uygulandı.")
         except Exception:
             pass
     
@@ -393,7 +361,6 @@ class SettingsFrame(tk.Frame):
                 base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
             except Exception:
                 base_pt = getattr(self.controller, 'saved_base_pt', 12)
-            apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
             try:
@@ -447,7 +414,6 @@ class SettingsFrame(tk.Frame):
         try:
             theme_key = 'dark' if self.var_dark.get() else 'light'
             base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
-            apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
             # Keep window size policy independent from font scale
@@ -485,7 +451,6 @@ class SettingsFrame(tk.Frame):
             theme_key = getattr(self.controller, 'saved_theme', 'light') or 'light'
             scale_val = getattr(self.controller, 'saved_scale', 1.5)
         try:
-            apply_theme(self.controller, scale=scale_val, theme_name=theme_key, base_pt=base_pt)
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
             self.controller.saved_base_pt = int(base_pt)

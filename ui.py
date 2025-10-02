@@ -40,6 +40,14 @@ def make_back_arrow(parent: tk.Misc, command) -> tk.Canvas:
         24, 25,
         34, 18,
         fill=normal_fill, outline='')
+    # Keep refs for theme refresh
+    try:
+        c._arrow_id = arrow  # type: ignore[attr-defined]
+        c._arrow_base_bg = bg  # type: ignore[attr-defined]
+        c._arrow_normal_fill = normal_fill  # type: ignore[attr-defined]
+        c._arrow_hover_fill = hover_fill  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
     # Hover effect
     def _on_enter(_e=None):
@@ -58,10 +66,72 @@ def make_back_arrow(parent: tk.Misc, command) -> tk.Canvas:
             pass
     c.bind('<Button-1>', _on_click)
     c.configure(cursor='hand2')
+    # Expose a refresh hook for theme changes
+    try:
+        def _refresh_theme(_e=None):
+            refresh_back_arrow(c)
+        c.refresh_theme = _refresh_theme  # type: ignore[attr-defined]
+    except Exception:
+        pass
     return c
 
 
+def refresh_back_arrow(canvas: tk.Canvas) -> None:
+    """Recompute back arrow canvas colors based on parent background."""
+    try:
+        parent = canvas.master
+        try:
+            bg = parent.cget('bg')
+        except Exception:
+            bg = canvas.cget('bg')
+        normal_fill, hover_fill = _contrast_fill(parent, bg)
+        try:
+            canvas.configure(bg=bg)
+        except Exception:
+            pass
+        try:
+            arrow_id = getattr(canvas, '_arrow_id', None)
+            if arrow_id:
+                canvas.itemconfig(arrow_id, fill=normal_fill)
+        except Exception:
+            pass
+        try:
+            canvas._arrow_normal_fill = normal_fill  # type: ignore[attr-defined]
+            canvas._arrow_hover_fill = hover_fill    # type: ignore[attr-defined]
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 from typing import Optional
+
+# Fixed card surface accent colors (light/dark modes)
+CARD_BG_LIGHT = '#f0f0f0'
+CARD_BG_DARK = '#2a2f33'
+
+
+class ThemeManager:
+    """Single entry point to apply the selected theme consistently.
+    Usage: ThemeManager.apply_all(root, theme_name, scale, base_pt)
+    """
+    @staticmethod
+    def apply_all(root: tk.Misc, theme_name: Optional[str], scale: Optional[float], base_pt: Optional[int]) -> None:
+        try:
+            # 1) Base theme + fonts + ttk palette
+            apply_theme(root, scale=scale, theme_name=theme_name, base_pt=base_pt)
+        except Exception:
+            pass
+        try:
+            # 2) Ensure card surfaces use fixed accent colors for current mode
+            refresh_card_tints(root)
+        except Exception:
+            pass
+        try:
+            # 3) Force controls inside cards to match card background exactly
+            ensure_card_control_backgrounds(root)
+        except Exception:
+            pass
 
 def fix_mojibake_text(s: Optional[str]) -> Optional[str]:
     """Best‑effort fix for UTF‑8 text that was mis‑decoded as Latin‑1/Windows‑1252.
@@ -186,6 +256,11 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
             _recolor_existing_classic_widgets(root, theme_name)
         except Exception:
             pass
+        # Then, unify ttk control backgrounds for card containers
+        try:
+            _apply_card_control_styles(root, theme_name)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -247,6 +322,24 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     style.map('Treeview', background=[('selected', sel_bg)], foreground=[('selected', sel_fg)])
     style.configure('Treeview.Heading', background='#333333', foreground=fg)
     style.configure('TEntry', fieldbackground=accent, foreground=fg)
+    # TSpinbox (ttk) styling for dark theme
+    try:
+        style.configure('TSpinbox', fieldbackground=accent, background=accent, foreground=fg, insertcolor=fg, arrowsize=14)
+        # Some Tk builds accept bordercolor/arrowcolor via element options; ignore errors
+        style.map('TSpinbox', fieldbackground=[('readonly', accent)], foreground=[('disabled', fg)])
+    except Exception:
+        pass
+    # Define card styles; they will be applied selectively by walker
+    try:
+        from tkinter import ttk
+        card_bg = CARD_BG_DARK
+        style = ttk.Style(root)
+        style.configure('Card.TEntry', fieldbackground=card_bg, background=card_bg, foreground=fg)
+        style.configure('Card.TSpinbox', fieldbackground=card_bg, background=card_bg, foreground=fg, insertcolor=fg)
+        style.configure('Card.TCombobox', fieldbackground=card_bg, background=card_bg, foreground=fg)
+        style.configure('Card.Treeview', background=card_bg, fieldbackground=card_bg)
+    except Exception:
+        pass
     # Inner padding for ttk.Entry in dark theme
     try:
         style.configure('TEntry', padding=(8, 6))
@@ -360,6 +453,12 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
     style.map('Treeview', background=[('selected', sel_bg)], foreground=[('selected', sel_fg)])
     style.configure('Treeview.Heading', background=accent, foreground=fg)
     style.configure('TEntry', fieldbackground='#ffffff', foreground=fg)
+    # TSpinbox (ttk) styling for light theme
+    try:
+        style.configure('TSpinbox', fieldbackground='#ffffff', background='#ffffff', foreground=fg, insertcolor=fg, arrowsize=14)
+        style.map('TSpinbox', fieldbackground=[('readonly', '#ffffff')])
+    except Exception:
+        pass
     # Inner padding for ttk.Entry in light theme
     try:
         style.configure('TEntry', padding=(8, 6))
@@ -367,6 +466,18 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
         pass
     style.configure('TCombobox', fieldbackground='#ffffff', background='#ffffff', foreground=fg)
     style.map('TCombobox', fieldbackground=[('readonly', '#ffffff')], foreground=[('readonly', fg)])
+
+    # Define card styles with fixed accent color
+    try:
+        from tkinter import ttk
+        card_bg = CARD_BG_LIGHT
+        style = ttk.Style(root)
+        style.configure('Card.TEntry', fieldbackground=card_bg, background=card_bg)
+        style.configure('Card.TSpinbox', fieldbackground=card_bg, background=card_bg)
+        style.configure('Card.TCombobox', fieldbackground=card_bg, background=card_bg)
+        style.configure('Card.Treeview', background=card_bg, fieldbackground=card_bg)
+    except Exception:
+        pass
 
 
 def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) -> None:
@@ -407,6 +518,30 @@ def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) 
             except Exception:
                 pass
 
+        def _is_in_card(widget: tk.Misc) -> bool:
+            try:
+                p = widget
+                for _ in range(0, 12):
+                    if getattr(p, '_is_card_inner', False):
+                        return True
+                    p = p.master  # type: ignore[attr-defined]
+                    if p is None:
+                        break
+            except Exception:
+                pass
+            return False
+
+        # Slightly shifted surface tone for cards
+        def _card_tone(base_bg: str) -> str:
+            try:
+                r16, g16, b16 = root.winfo_rgb(base_bg)
+                lum = 0.2126 * (r16/65535.0) + 0.7152 * (g16/65535.0) + 0.0722 * (b16/65535.0)
+            except Exception:
+                lum = 1.0
+            return tinted_bg(root, 0.10 if lum < 0.5 else -0.10)
+
+        card_bg = _card_tone(bg)
+
         def _walk(w: tk.Misc) -> None:
             try:
                 children = w.winfo_children()
@@ -421,21 +556,25 @@ def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) 
                 is_ttk = cls.startswith('T')
                 if not is_ttk:
                     try:
-                        # Frames and Canvas adopt container bg
+                        in_card = _is_in_card(c)
+                        surface_bg = card_bg if in_card else bg
+                        # Frames and Canvas adopt surface bg
                         if isinstance(c, tk.Frame) or isinstance(c, tk.Toplevel) or isinstance(c, tk.Canvas):
-                            c.configure(bg=bg)
+                            c.configure(bg=surface_bg)
                         # Classic Buttons get explicit palette
                         elif isinstance(c, tk.Button):
                             c.configure(bg=btn_bg, fg=btn_fg, activebackground=btn_bg_active, activeforeground=btn_fg, highlightthickness=0, bd=0, relief='flat')
                         # Entry-like
                         elif isinstance(c, tk.Entry) or isinstance(c, tk.Spinbox):
-                            c.configure(bg=entry_bg, fg=fg, insertbackground=fg)
+                            ebg = card_bg if in_card else entry_bg
+                            c.configure(bg=ebg, fg=fg, insertbackground=fg)
                         # Listbox
                         elif isinstance(c, tk.Listbox):
-                            c.configure(bg=list_bg, fg=fg)
+                            lbg = card_bg if in_card else list_bg
+                            c.configure(bg=lbg, fg=fg)
                         # Check/Radiobuttons should blend with bg and use fg
                         elif isinstance(c, tk.Checkbutton) or isinstance(c, tk.Radiobutton):
-                            c.configure(bg=bg, fg=fg, activebackground=bg, activeforeground=fg, selectcolor=bg)
+                            c.configure(bg=surface_bg, fg=fg, activebackground=surface_bg, activeforeground=fg, selectcolor=surface_bg)
                         # Labels: leave bg as-is if manually tinted; do not recolor fg
                         elif isinstance(c, tk.Label):
                             pass
@@ -536,6 +675,11 @@ def rounded_outline(parent: tk.Misc, radius: int = 10, padding: int = 8, border:
     canvas = tk.Canvas(container, bd=0, highlightthickness=0, bg=bg)
     canvas.pack(fill='both', expand=True)
     inner = tk.Frame(container, bd=0, highlightthickness=0, bg=bg)
+    # Mark inner as a card container for theming walkers
+    try:
+        inner._is_card_inner = True  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
     def _resize(event=None):
         w = container.winfo_width()
@@ -561,6 +705,189 @@ def rounded_outline(parent: tk.Misc, radius: int = 10, padding: int = 8, border:
 
     container.bind('<Configure>', _resize)
     return container, inner
+
+
+def _theme_mode(root: tk.Misc, explicit: Optional[str] = None) -> str:
+    try:
+        if explicit:
+            low = str(explicit).lower()
+            if 'dark' in low or 'koyu' in low:
+                return 'dark'
+            if 'light' in low or 'acik' in low or 'açık' in low:
+                return 'light'
+        bg = root.cget('bg') if hasattr(root, 'cget') else '#ffffff'
+        r16, g16, b16 = root.winfo_rgb(bg)
+        lum = 0.2126 * (r16/65535.0) + 0.7152 * (g16/65535.0) + 0.0722 * (b16/65535.0)
+        return 'dark' if lum < 0.5 else 'light'
+    except Exception:
+        return 'light'
+
+def _compute_card_bg(widget: tk.Misc, theme_name: Optional[str] = None) -> str:
+    mode = _theme_mode(widget, theme_name)
+    return CARD_BG_DARK if mode == 'dark' else CARD_BG_LIGHT
+
+
+def create_card(parent: tk.Misc, radius: int = 12, padding: int = 12, border: str = '#888') -> tuple[tk.Frame, tk.Frame]:
+    """Create a standard card surface with unified background tone.
+    Returns (card_container, inner_frame).
+    """
+    card, inner = rounded_outline(parent, radius=radius, padding=padding, border=border)
+    try:
+        inner.configure(bg=_compute_card_bg(parent))
+    except Exception:
+        pass
+    return card, inner
+
+
+def refresh_card_tints(root: tk.Misc) -> None:
+    """Refresh background color of all card inner frames and non-input classic children.
+    Applies the standard card tone relative to current theme background.
+    """
+    try:
+        import tkinter as tk
+        def _walk(w: tk.Misc):
+            try:
+                children = w.winfo_children()
+            except Exception:
+                children = []
+            for c in children:
+                try:
+                    if getattr(c, '_is_card_inner', False):
+                        new_bg = _compute_card_bg(root)
+                        try:
+                            c.configure(bg=new_bg)
+                        except Exception:
+                            pass
+                        # Update classic children to match card bg, but skip inputs
+                        for ch in c.winfo_children():
+                            try:
+                                if isinstance(ch, (tk.Entry, tk.Text, tk.Spinbox, tk.Listbox)):
+                                    continue
+                                cls = str(ch.winfo_class())
+                                if not cls.startswith('T'):
+                                    ch.configure(bg=new_bg)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                _walk(c)
+        _walk(root)
+    except Exception:
+        pass
+
+
+def ensure_card_control_backgrounds(root: tk.Misc) -> None:
+    """Force controls inside card inners to use the exact card inner bg.
+    Creates per-tone ttk styles so colors match even on platforms that ignore generic colors.
+    """
+    try:
+        from tkinter import ttk
+        import tkinter as tk
+
+        def _fg_for(bg: str) -> str:
+            try:
+                r16, g16, b16 = root.winfo_rgb(bg)
+                lum = 0.2126 * (r16/65535.0) + 0.7152 * (g16/65535.0) + 0.0722 * (b16/65535.0)
+                return '#eaeaea' if lum < 0.5 else '#222222'
+            except Exception:
+                return '#222222'
+
+        style = ttk.Style(root)
+
+        def _style_name(base: str, bg: str) -> str:
+            key = bg.replace('#','') if isinstance(bg, str) else 'X'
+            return f"Card{key}.{base}"
+
+        def _apply_for_widget(w: tk.Misc, inner_bg: str):
+            try:
+                cls = str(w.winfo_class())
+            except Exception:
+                cls = ''
+            # ttk widgets
+            if cls.startswith('T'):
+                fg = _fg_for(inner_bg)
+                if cls in ('TEntry',):
+                    sn = _style_name('TEntry', inner_bg)
+                    try:
+                        style.configure(sn, fieldbackground=inner_bg, background=inner_bg, foreground=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                elif cls in ('TSpinbox',):
+                    sn = _style_name('TSpinbox', inner_bg)
+                    try:
+                        style.configure(sn, fieldbackground=inner_bg, background=inner_bg, foreground=fg, insertcolor=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                elif cls in ('TCombobox',):
+                    sn = _style_name('TCombobox', inner_bg)
+                    try:
+                        style.configure(sn, fieldbackground=inner_bg, background=inner_bg, foreground=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                elif cls in ('Treeview',):
+                    sn = _style_name('Treeview', inner_bg)
+                    try:
+                        style.configure(sn, background=inner_bg, fieldbackground=inner_bg, foreground=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+            else:
+                # Classic widgets: set bg directly except for inputs
+                try:
+                    if isinstance(w, (tk.Entry, tk.Spinbox, tk.Listbox, tk.Text)):
+                        w.configure(bg=inner_bg)
+                    elif isinstance(w, (tk.Frame, tk.Canvas, tk.Toplevel, tk.Label)):
+                        w.configure(bg=inner_bg)
+                except Exception:
+                    pass
+
+        def _is_card_inner(w: tk.Misc) -> bool:
+            return bool(getattr(w, '_is_card_inner', False))
+
+        def _find_card_inner(w: tk.Misc):
+            p = w
+            depth = 0
+            while p is not None and depth < 12:
+                if _is_card_inner(p):
+                    return p
+                p = getattr(p, 'master', None)
+                depth += 1
+            return None
+
+        def _walk(w: tk.Misc):
+            try:
+                children = w.winfo_children()
+            except Exception:
+                children = []
+            for c in children:
+                inner = _find_card_inner(c)
+                if inner is not None:
+                    try:
+                        inner_bg = inner.cget('bg')
+                    except Exception:
+                        inner_bg = None
+                    if inner_bg:
+                        _apply_for_widget(c, inner_bg)
+                _walk(c)
+
+        _walk(root)
+    except Exception:
+        pass
 
 
 def tinted_bg(widget: tk.Misc, amount: float = 0.08) -> str:

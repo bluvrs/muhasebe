@@ -4,7 +4,7 @@ from tkinter import messagebox, ttk
 import tkinter.font as tkfont
 from typing import Dict, List, Optional, Type, Callable
 from members import MembersFrame
-from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action, fix_mojibake_text
+from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action, fix_mojibake_text, create_card, refresh_card_tints, ensure_card_control_backgrounds, CARD_BG_LIGHT, CARD_BG_DARK, ThemeManager
 import sqlite3 as _sqlite3
 from typing import Tuple
 try:
@@ -462,59 +462,13 @@ class App(tk.Tk):
             return 2.0, None, 12
 
     def refresh_theme(self) -> None:
-        # Apply the theme first
-        try:
-            apply_theme(self, scale=getattr(self, 'ui_scale', 1.5), theme_name=getattr(self, 'saved_theme', None) or 'light', base_pt=getattr(self, 'saved_base_pt', 12))
-        except Exception:
-            pass
-
-        # Recolor classic Tk widgets (Labels, Checkbuttons, Frames, Buttons)
-        def recolor_widgets(widget):
-            import tkinter as tk
-            # Determine the active theme
-            theme = getattr(self, 'saved_theme', 'light').lower()
-            # Label
-            if isinstance(widget, tk.Label):
-                try:
-                    if theme == "dark":
-                        widget.configure(bg="#1e2023", fg="white")
-                    else:
-                        widget.configure(bg="white", fg="black")
-                except Exception:
-                    pass
-            # Checkbutton
-            elif isinstance(widget, tk.Checkbutton):
-                try:
-                    if theme == "dark":
-                        widget.configure(bg="#1e2023", fg="white", selectcolor="#2a2f33")
-                    else:
-                        widget.configure(bg="white", fg="black", selectcolor="white")
-                except Exception:
-                    pass
-            # Button
-            elif isinstance(widget, tk.Button):
-                try:
-                    widget.configure(bg="#1e2023", fg="white", activebackground="#2a2f33", activeforeground="white")
-                except Exception:
-                    pass
-            # Frame
-            elif isinstance(widget, tk.Frame):
-                try:
-                    if theme == "dark":
-                        widget.configure(bg="#1e2023")
-                    else:
-                        widget.configure(bg="white")
-                except Exception:
-                    pass
-            # Recurse into children
-            for child in widget.winfo_children():
-                recolor_widgets(child)
-
-        try:
-            recolor_widgets(self)
-        except Exception:
-            pass
-
+        # Centralized theme application
+        ThemeManager.apply_all(
+            self,
+            theme_name=getattr(self, 'saved_theme', None) or 'light',
+            scale=getattr(self, 'ui_scale', 1.5),
+            base_pt=getattr(self, 'saved_base_pt', 12),
+        )
         # Now, after theme applied and recoloring, notify all frames of theme change
         try:
             for frame in self.frames.values():
@@ -538,13 +492,14 @@ class App(tk.Tk):
             pass
 
     def set_min_window_for_scale(self, scale: float) -> None:
-        """Set a minimum window size that comfortably fits UI at given scale."""
+        """Set a minimum window size that comfortably fits UI at given scale.
+        Note: does NOT mutate self.ui_scale; this is only a min-size policy.
+        """
         try:
             base_w, base_h = 800, 600
             w = int(base_w * max(1.0, float(scale)))
             h = int(base_h * max(1.0, float(scale)))
             self.minsize(w, h)
-            self.ui_scale = float(scale)
         except Exception:
             pass
 
@@ -751,16 +706,11 @@ class RoleFrame(tk.Frame):
         # Centered user card with rounded outline
         user_holder = tk.Frame(self)
         user_holder.pack(pady=(0, 10), anchor='n')
-        card, inner = rounded_outline(user_holder, radius=12, padding=10, border='#888')
+        card, inner = create_card(user_holder, radius=12, padding=10, border='#888')
         card.pack(anchor='center')
         # Save card and inner for later theme updates
         self.card = card
         self.inner = inner
-        try:
-            tint = smart_tinted_bg(self)
-            inner.configure(bg=tint)
-        except Exception:
-            pass
         # Set a comfortable width for the card, and increase height to 96
         try:
             card.configure(width=520, height=96)
