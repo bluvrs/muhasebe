@@ -19,6 +19,8 @@ class SettingsFrame(tk.Frame):
 
         header = tk.Frame(self)
         header.pack(fill='x')
+        # Keep a reference for theme refreshes
+        self.header_frame = header
         self.back_arrow = make_back_arrow(header, self.go_back)
         self.back_arrow.pack(side='left', padx=(10,6), pady=(10,6))
         tk.Label(header, text="Ayarlar", font='TkHeadingFont').pack(side='left', pady=(16,6))
@@ -106,14 +108,35 @@ class SettingsFrame(tk.Frame):
         tk.Label(row_base, text="Temel yazı boyutu (pt):", bg=tint_scale).pack(side='left')
         self.var_base_pt = tk.StringVar(value='12')
         try:
-            # Prefer ttk.Spinbox for better theming support
+            # Prefer ttk.Spinbox for better theming support. Avoid using the
+            # built-in 'command' callback because some Tk builds fire it at a
+            # surprising moment when switching arrow direction, which looks like
+            # a reversed first step. We'll instead commit changes on Enter/blur.
             from tkinter import ttk as _ttk
-            self.spin_base = _ttk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, command=self.on_base_pt_change)
+            self.spin_base = _ttk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, increment=1)
         except Exception:
             # Fallback to classic Spinbox
-            self.spin_base = tk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, command=self.on_base_pt_change)
+            self.spin_base = tk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, increment=1)
         self.spin_base.pack(side='left', padx=(6, 0))
+        # Apply on Enter or when the control loses focus; also normalize value
         self.spin_base.bind('<Return>', lambda _e: self.on_base_pt_change())
+        self.spin_base.bind('<FocusOut>', lambda _e: self.on_base_pt_change())
+        # Also apply live when arrows change the value (debounced)
+        try:
+            self._base_pt_job = None
+            def _debounce_apply(*_a):
+                try:
+                    if self._base_pt_job is not None:
+                        self.after_cancel(self._base_pt_job)
+                except Exception:
+                    pass
+                try:
+                    self._base_pt_job = self.after(120, self.on_base_pt_change)
+                except Exception:
+                    self.on_base_pt_change()
+            self.var_base_pt.trace_add('write', lambda *a: _debounce_apply())
+        except Exception:
+            pass
         _autosize_card(scale_card, scale_inner, min_w=560, pad=12, min_h=160)
         scale_card.pack_propagate(False)
 
@@ -221,6 +244,12 @@ class SettingsFrame(tk.Frame):
 
         # Refresh back arrow icon/colors to match new theme
         try:
+            # Ensure header bg tracks current app bg so arrow contrast is correct
+            try:
+                if hasattr(self, 'header_frame') and self.header_frame:
+                    self.header_frame.configure(bg=self.cget('bg'))
+            except Exception:
+                pass
             if hasattr(self, 'back_arrow') and self.back_arrow:
                 if hasattr(self.back_arrow, 'refresh_theme'):
                     self.back_arrow.refresh_theme()
@@ -425,38 +454,61 @@ class SettingsFrame(tk.Frame):
         self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
 
     def on_base_pt_change(self) -> None:
-        # Persist and apply base font point size
+        # Persist and apply base font point size.
+        # Also rescale using scale factor so the effective size updates canlı.
         try:
-            base_pt = int(self.var_base_pt.get())
-            if base_pt < 8:
-                base_pt = 8
+            new_base = int(self.var_base_pt.get())
+            if new_base < 8:
+                new_base = 8
         except Exception:
-            base_pt = 12
+            new_base = 12
+        # Keep current scale from radio selection or controller
+        try:
+            new_scale = float(self.var_scale.get()) if hasattr(self, 'var_scale') else float(getattr(self.controller, 'saved_scale', 1.5))
+        except Exception:
+            new_scale = float(getattr(self.controller, 'saved_scale', 1.5))
+        # Persist both settings
         try:
             conn = sqlite3.connect(DB_NAME)
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
             cur.execute(
                 "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                ('ui_base_pt', str(base_pt)),
+                ('ui_base_pt', str(new_base)),
             )
+            # Persisted scale remains unchanged here
             conn.commit()
             conn.close()
         except Exception:
             pass
+        # Update controller memory and apply theme
         try:
-            theme_key = 'dark' if self.var_dark.get() else 'light'
-            scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
+            self.controller.saved_base_pt = int(new_base)
+            self.controller.saved_scale = float(new_scale)
+            self.controller.ui_scale = float(new_scale)
         except Exception:
-            theme_key = getattr(self.controller, 'saved_theme', 'light') or 'light'
-            scale_val = getattr(self.controller, 'saved_scale', 1.5)
+            pass
+        try:
+            # Update scale radio var to reflect new value textually
+            if hasattr(self, 'var_scale'):
+                self.var_scale.set(str(new_scale))
+        except Exception:
+            pass
         try:
             if hasattr(self.controller, 'refresh_theme'):
                 self.controller.refresh_theme()
-            self.controller.saved_base_pt = int(base_pt)
         except Exception:
             pass
-        self.status_var.set(f"Temel yazı boyutu: {base_pt} pt")
+        # Re-show the current screen to rebuild layout with new base font.
+        try:
+            cf = getattr(self.controller, 'current_frame_class', None)
+            if cf is not None:
+                kw = getattr(self.controller, 'current_frame_kwargs', {}) or {}
+                # Best effort: reopen same screen; SalesFrame is recreated already.
+                self.controller.show_frame(cf, **kw)
+        except Exception:
+            pass
+        self.status_var.set(f"Temel yazı: {new_base} pt, ölçek: {new_scale}x")
 
     # --- DB Utils ---
     def backup_db(self) -> None:

@@ -51,13 +51,24 @@ def make_back_arrow(parent: tk.Misc, command) -> tk.Canvas:
 
     # Hover effect
     def _on_enter(_e=None):
-        c.itemconfig(arrow, fill=hover_fill)
+        try:
+            hf = getattr(c, '_arrow_hover_fill', hover_fill)
+        except Exception:
+            hf = hover_fill
+        c.itemconfig(arrow, fill=hf)
 
     def _on_leave(_e=None):
-        c.itemconfig(arrow, fill=normal_fill)
+        try:
+            nf = getattr(c, '_arrow_normal_fill', normal_fill)
+        except Exception:
+            nf = normal_fill
+        c.itemconfig(arrow, fill=nf)
 
     c.bind('<Enter>', _on_enter)
     c.bind('<Leave>', _on_leave)
+    # Extra guards so it never sticks in hover color
+    c.bind('<ButtonRelease-1>', _on_leave)
+    c.bind('<FocusOut>', _on_leave)
     def _on_click(_e=None):
         try:
             if callable(command):
@@ -103,6 +114,25 @@ def refresh_back_arrow(canvas: tk.Canvas) -> None:
     except Exception:
         pass
 
+def refresh_all_back_arrows(root: tk.Misc) -> None:
+    """Refresh all back-arrow Canvas widgets in the widget tree."""
+    try:
+        def _walk(w: tk.Misc):
+            try:
+                children = w.winfo_children()
+            except Exception:
+                children = []
+            for c in children:
+                try:
+                    if isinstance(c, tk.Canvas) and getattr(c, '_arrow_id', None):
+                        refresh_back_arrow(c)  # type: ignore[arg-type]
+                except Exception:
+                    pass
+                _walk(c)
+        _walk(root)
+    except Exception:
+        pass
+
 
 from typing import Optional
 
@@ -130,6 +160,26 @@ class ThemeManager:
         try:
             # 3) Force controls inside cards to match card background exactly
             ensure_card_control_backgrounds(root)
+        except Exception:
+            pass
+        try:
+            # 4) Enforce contrasting text colors for classic widgets based on bg
+            ensure_contrast_text_colors(root)
+        except Exception:
+            pass
+        try:
+            # 5) Adjust ttk styles' foregrounds to contrast with their bg
+            ensure_ttk_contrast_styles(root)
+        except Exception:
+            pass
+        try:
+            # 6) Refresh any back-arrow canvases so their icon color matches new bg
+            refresh_all_back_arrows(root)
+        except Exception:
+            pass
+        try:
+            # 7) Per-widget contrast for ttk.Label instances
+            ensure_ttk_label_contrast(root)
         except Exception:
             pass
 
@@ -556,6 +606,9 @@ def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) 
                 is_ttk = cls.startswith('T')
                 if not is_ttk:
                     try:
+                        # Respect opt-out flag for custom-styled widgets
+                        if getattr(c, '_preserve_theme', False):
+                            raise Exception('skip-theme-preserve')
                         in_card = _is_in_card(c)
                         surface_bg = card_bg if in_card else bg
                         # Frames and Canvas adopt surface bg
@@ -575,9 +628,17 @@ def _recolor_existing_classic_widgets(root: tk.Misc, theme_name: Optional[str]) 
                         # Check/Radiobuttons should blend with bg and use fg
                         elif isinstance(c, tk.Checkbutton) or isinstance(c, tk.Radiobutton):
                             c.configure(bg=surface_bg, fg=fg, activebackground=surface_bg, activeforeground=fg, selectcolor=surface_bg)
-                        # Labels: leave bg as-is if manually tinted; do not recolor fg
+                        # Labels: set foreground contrasting to the label's own
+                        # background so custom badges stay readable across theme
+                        # switches.
                         elif isinstance(c, tk.Label):
-                            pass
+                            try:
+                                # Align label background with current surface
+                                c.configure(bg=surface_bg)
+                                use_light = _is_dark_bg(c, surface_bg)
+                                c.configure(fg=('#ffffff' if use_light else '#000000'))
+                            except Exception:
+                                pass
                     except Exception:
                         pass
                 # Recurse
@@ -933,6 +994,214 @@ def smart_tinted_bg(widget: tk.Misc, light_amount: float = -0.06, dark_amount: f
         return tinted_bg(widget, light_amount)
 
 
+def _is_dark_bg(widget: tk.Misc, bg: Optional[str] = None) -> bool:
+    try:
+        color = bg if bg is not None else widget.cget('bg')
+        r16, g16, b16 = widget.winfo_rgb(color)
+        r = r16 / 65535.0
+        g = g16 / 65535.0
+        b = b16 / 65535.0
+        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return lum < 0.5
+    except Exception:
+        return False
+
+
+def ensure_contrast_text_colors(container: tk.Misc) -> None:
+    """Walk the widget tree and set a readable foreground color based on
+    each widget's current background. Applies to classic Tk widgets only.
+    - Dark bg -> light text
+    - Light bg -> black text
+    Respects an optional flag: widget._preserve_fg = True to opt out.
+    Also updates Entry/Spinbox insert cursor color.
+    """
+    try:
+        children = container.winfo_children()
+    except Exception:
+        children = []
+    for w in children:
+        try:
+            cls = w.winfo_class()
+        except Exception:
+            cls = ''
+        is_ttk = str(cls).startswith('T')
+        if not is_ttk:
+            try:
+                bg = w.cget('bg') if hasattr(w, 'cget') else None
+                if getattr(w, '_preserve_theme', False):
+                    raise Exception('skip-theme-preserve')
+                if bg is not None and not getattr(w, '_preserve_fg', False):
+                    light_fg = '#ffffff'
+                    dark_fg = '#000000'
+                    use_light = _is_dark_bg(w, bg)
+                    fg = light_fg if use_light else dark_fg
+                    if isinstance(w, tk.Button):
+                        w.configure(fg=fg)
+                        if isinstance(w, tk.Button):
+                            try:
+                                # Keep activeforeground in sync when possible
+                                w.configure(activeforeground=fg)
+                            except Exception:
+                                pass
+                    elif isinstance(w, tk.Entry) or isinstance(w, tk.Spinbox):
+                        w.configure(fg=fg)
+                        try:
+                            w.configure(insertbackground=fg)
+                        except Exception:
+                            pass
+                    elif isinstance(w, tk.Listbox):
+                        w.configure(fg=fg)
+                    elif isinstance(w, tk.Checkbutton) or isinstance(w, tk.Radiobutton):
+                        # For these, keep selectcolor as current bg but set text colors
+                        w.configure(fg=fg, activeforeground=fg)
+                    elif isinstance(w, tk.Label):
+                        # Labels: contrast to their own bg
+                        try:
+                            use_light_lbl = _is_dark_bg(w, bg)
+                            w.configure(fg=('#ffffff' if use_light_lbl else '#000000'))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        # Recurse
+        try:
+            ensure_contrast_text_colors(w)
+        except Exception:
+            pass
+
+
+def ensure_ttk_contrast_styles(root: tk.Misc) -> None:
+    """Ensure ttk styles have readable foregrounds vs their backgrounds.
+    Uses theme mode heuristic. Covers: TButton, Solid.TButton, Menu.TButton,
+    TEntry, TSpinbox, TCombobox, Treeview headings/rows.
+    """
+    try:
+        from tkinter import ttk
+        style = ttk.Style(root)
+        mode = _theme_mode(root)
+        if mode == 'dark':
+            btn_fg = '#000000'  # dark theme uses light buttons
+            entry_fg = '#eaeaea'
+            tree_fg = '#eaeaea'
+        else:
+            btn_fg = '#ffffff'  # light theme uses dark buttons
+            entry_fg = '#222222'
+            tree_fg = '#222222'
+        for sty in ('TButton', 'Solid.TButton', 'Menu.TButton'):
+            try:
+                style.configure(sty, foreground=btn_fg)
+                style.map(sty, foreground=[('active', btn_fg), ('!disabled', btn_fg)])
+            except Exception:
+                pass
+        # Ensure menu-styled buttons keep a comfortable height regardless of
+        # platform/theme overrides by enforcing padding.
+        try:
+            style.configure('Menu.TButton', padding=(24, 12), anchor='center', justify='center')
+        except Exception:
+            pass
+        for sty in ('TEntry', 'TSpinbox', 'TCombobox'):
+            try:
+                style.configure(sty, foreground=entry_fg)
+            except Exception:
+                pass
+        try:
+            style.configure('Treeview', foreground=tree_fg)
+            style.configure('Treeview.Heading', foreground=tree_fg)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def ensure_ttk_label_contrast(root: tk.Misc) -> None:
+    """Ensure each ttk.Label has readable text against its own background.
+    Tries per-widget background via style lookup; then sets widget foreground.
+    """
+    try:
+        from tkinter import ttk
+        style = ttk.Style(root)
+        # Helpers to detect card and compute surface tint similar to classic path
+        def _is_in_card(widget: tk.Misc) -> bool:
+            try:
+                p = widget
+                for _ in range(0, 12):
+                    if getattr(p, '_is_card_inner', False):
+                        return True
+                    p = p.master  # type: ignore[attr-defined]
+                    if p is None:
+                        break
+            except Exception:
+                pass
+            return False
+        def _surface_bg_for(widget: tk.Misc) -> Optional[str]:
+            try:
+                base = root.cget('bg')
+            except Exception:
+                base = '#ffffff'
+            try:
+                # Match card tone if inside a card
+                if _is_in_card(widget):
+                    return _compute_card_bg(root)
+            except Exception:
+                pass
+            # Otherwise use parent bg
+            try:
+                p = widget.master
+                if p and hasattr(p, 'cget'):
+                    return p.cget('bg')  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return base
+        def _bg_for(widget: tk.Misc) -> Optional[str]:
+            try:
+                # 1) Explicit background option on widget
+                bg = widget.cget('background')  # type: ignore[call-arg]
+                if bg:
+                    return bg
+            except Exception:
+                pass
+            try:
+                # 2) Style-defined background
+                sty = getattr(widget, 'cget', lambda *_: None)('style')
+                sty = sty or 'TLabel'
+                bg = style.lookup(sty, 'background')
+                if bg:
+                    return bg
+            except Exception:
+                pass
+            try:
+                # 3) Fallback to parent's bg
+                p = widget.master
+                if p and hasattr(p, 'cget'):
+                    return p.cget('bg')  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return None
+        def _walk(w: tk.Misc):
+            try:
+                children = w.winfo_children()
+            except Exception:
+                children = []
+            for c in children:
+                try:
+                    if isinstance(c, ttk.Label):
+                        # Normalize background to current surface to avoid stale bg
+                        surf = _surface_bg_for(c)
+                        if surf:
+                            try:
+                                c.configure(background=surf)
+                            except Exception:
+                                pass
+                            use_light = _is_dark_bg(c, surf)
+                            c.configure(foreground=('#ffffff' if use_light else '#000000'))
+                except Exception:
+                    pass
+                _walk(c)
+        _walk(root)
+    except Exception:
+        pass
+
+
 def apply_entry_margins(container: tk.Misc, pady: int = 6, padx: int = 0) -> None:
     """Walk the widget tree under container and add margins and internal padding
     to Entry/Spinbox widgets.
@@ -940,11 +1209,23 @@ def apply_entry_margins(container: tk.Misc, pady: int = 6, padx: int = 0) -> Non
     - Internal padding: sets a comfortable ipady/ipadx if smaller than desired
     Works for both pack and grid managers without altering order.
     """
+    # Allow whole subtrees to opt out (frames that manage spacing precisely)
+    try:
+        if getattr(container, '_preserve_theme', False):
+            return
+    except Exception:
+        pass
     try:
         children = container.winfo_children()
     except Exception:
         return
     for w in children:
+        try:
+            if getattr(w, '_preserve_theme', False):
+                # Skip this widget and its subtree
+                continue
+        except Exception:
+            pass
         try:
             manager = w.winfo_manager()
         except Exception:
@@ -1002,6 +1283,11 @@ def apply_button_margins(container: tk.Misc, pady: int = 12, padx: int = 12) -> 
     except Exception:
         return
     for w in children:
+        try:
+            if getattr(w, '_preserve_theme', False):
+                continue
+        except Exception:
+            pass
         try:
             manager = w.winfo_manager()
         except Exception:

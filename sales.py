@@ -18,6 +18,12 @@ class SalesFrame(tk.Frame):
     def __init__(self, parent: tk.Misc, controller) -> None:
         super().__init__(parent)
         self.controller = controller
+        # Opt-out from global margin walkers to prevent unintended vertical
+        # growth after theme/font changes. This frame manages its own spacing.
+        try:
+            self._preserve_theme = True
+        except Exception:
+            pass
 
         # Font setup for small controls
         base_font = tkfont.nametofont("TkDefaultFont")
@@ -30,21 +36,24 @@ class SalesFrame(tk.Frame):
         back = make_back_arrow(header, self.go_back)
         back.pack(side='left', padx=(10,6), pady=(10,6))
         tk.Label(header, text="Yeni Satış", font='TkHeadingFont').pack(side='left', pady=(16,6))
+        self.header = header
 
         # Scan/Search bar
         sb = tk.Frame(self)
         sb.pack(fill="x", padx=20)
+        self.sb = sb
         tk.Label(sb, text="Barkod/İsim:").pack(side="left")
         self.entry_scan = tk.Entry(sb)
         self.entry_scan.pack(side="left", fill="x", expand=True, padx=(6, 6))
         tk.Label(sb, text="Adet/Miktar:").pack(side="left")
-        # Numeric up-down for quantity with validation (digits only, allow empty while typing)
-        vqty = (self.register(lambda P: (P.isdigit() or P == '')), '%P')
-        self.entry_qty = tk.Spinbox(sb, from_=1, to=1000000, width=6, validate='key', validatecommand=vqty)
+        # Numeric up-down for quantity
+        # Use ttk.Spinbox to avoid odd first-click reversal seen with tk.Spinbox
+        # when combined with key validation on some Tk builds.
+        self.entry_qty = ttk.Spinbox(sb, from_=1, to=1000000, width=6, increment=1)
         self.entry_qty.delete(0, tk.END)
         self.entry_qty.insert(0, "1")
         self.entry_qty.pack(side="left", padx=(6, 6))
-        # On focus out, clamp to minimum 1
+        # On focus out, clamp to minimum 1 and coerce non-digits
         self.entry_qty.bind('<FocusOut>', lambda _e: self._qty_clamp(self.entry_qty))
         ttk.Button(sb, text="Ekle", command=self.add_to_cart).pack(side="left")
         ttk.Button(sb, text="Sepeti Temizle", command=self.clear_cart).pack(side="left", padx=(8, 0))
@@ -69,6 +78,7 @@ class SalesFrame(tk.Frame):
         # Cart tools: quick quantity adjust and remove selected line
         tools = tk.Frame(self)
         tools.pack(fill='x', padx=20, pady=(0, 6))
+        self.tools = tools
         ttk.Button(tools, text="− Azalt (−)", command=lambda: self._adjust_selected_qty(-1)).pack(side='left')
         ttk.Button(tools, text="+ Artır (+)", command=lambda: self._adjust_selected_qty(+1)).pack(side='left', padx=(6, 0))
         ttk.Button(tools, text="Satırı Sil (Del)", command=self._remove_selected).pack(side='left', padx=(12, 0))
@@ -82,6 +92,7 @@ class SalesFrame(tk.Frame):
         # Totals + actions
         bottom = tk.Frame(self)
         bottom.pack(side='bottom', fill="x", padx=20, pady=(0, 10))
+        self.bottom = bottom
         # Left group: date + toplam
         left_box = tk.Frame(bottom)
         left_box.pack(side='left')
@@ -223,6 +234,33 @@ class SalesFrame(tk.Frame):
         except Exception:
             pass
         self.entry_scan.focus_set()
+        # Stabilize layout after fonts/theme settle on first show
+        try:
+            self.after(0, self._stabilize_layout)
+            self.after(120, self._stabilize_layout)
+        except Exception:
+            pass
+
+    def _stabilize_layout(self) -> None:
+        try:
+            # Enforce deterministic paddings for critical rows
+            if hasattr(self, 'header'):
+                self.header.pack_configure(fill='x')
+            if hasattr(self, 'sb'):
+                self.sb.pack_configure(fill='x', padx=20, pady=(4, 4))
+            # Treeview keeps its own expand area
+            try:
+                self.cart.pack_configure(padx=20, pady=(8, 8))
+            except Exception:
+                pass
+            if hasattr(self, 'tools'):
+                self.tools.pack_configure(fill='x', padx=20, pady=(4, 6))
+            if hasattr(self, 'bottom'):
+                self.bottom.pack_configure(fill='x', padx=20, pady=(0, 10))
+            # Force geometry evaluation twice
+            self.update_idletasks()
+        except Exception:
+            pass
 
     def go_back(self) -> None:
         user = getattr(self.controller, "active_user", None)
@@ -973,7 +1011,7 @@ class ReturnFrame(tk.Frame):
             self.purchases.delete(iid)
         if not q:
             self.status_var.set("Ürün barkodu/ismi girin.")
-            return
+        return
         prod = self._find_product(q)
         if not prod:
             self.status_var.set("Ürün bulunamadı.")

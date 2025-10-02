@@ -45,6 +45,11 @@ class MembersFrame(tk.Frame):
         tk.Label(form, text="Rol").grid(row=0, column=2, sticky="w")
         self.role_combo = ttk.Combobox(form, values=["admin", "kasiyer", "muhasebe", "yonetici", "uye"], state="readonly")
         self.role_combo.grid(row=0, column=3, sticky="w")
+        # When role changes from the combo, preselect permissions for that role
+        try:
+            self.role_combo.bind('<<ComboboxSelected>>', lambda _e: self._apply_role_defaults())
+        except Exception:
+            pass
 
         form.columnconfigure(1, weight=1)
 
@@ -59,6 +64,36 @@ class MembersFrame(tk.Frame):
         self.btn_delete.pack(side="left")
         self.btn_reset_pwd = ttk.Button(btns, text="Sifreyi Sifirla", command=self.reset_password)
         self.btn_reset_pwd.pack(side="left", padx=8)
+
+        # Permissions section
+        perm_box = tk.LabelFrame(self, text="Yetkiler (menüler)")
+        perm_box.pack(fill='x', padx=20, pady=(0, 10))
+        self._perm_vars = {}
+        self._perm_checks = []
+        keys = [
+            ('members', 'Üye yönetimi'),
+            ('products', 'Ürün yönetimi'),
+            ('sale', 'Yeni satış'),
+            ('return', 'İade işlemi'),
+            ('ledger', 'Gelir/Gider kaydı'),
+            ('investors', 'Yatırımcılar'),
+            ('reports', 'Raporlar'),
+            ('settings', 'Ayarlar'),
+        ]
+        row = 0
+        col = 0
+        for k, label in keys:
+            var = tk.BooleanVar(value=True)
+            cb = tk.Checkbutton(perm_box, text=label, variable=var)
+            cb.grid(row=row, column=col, sticky='w', padx=8, pady=4)
+            self._perm_vars[k] = var
+            self._perm_checks.append(cb)
+            col += 1
+            if col >= 4:
+                col = 0
+                row += 1
+        self.btn_save_perms = ttk.Button(perm_box, text="Yetkileri Kaydet", command=self.save_permissions)
+        self.btn_save_perms.grid(row=row+1, column=0, sticky='w', padx=8, pady=(6, 4))
 
         self.refresh_users()
 
@@ -136,6 +171,10 @@ class MembersFrame(tk.Frame):
         self.entry_username.insert(0, uname)
         self.entry_password.delete(0, tk.END)
         self.role_combo.set(role)
+        # Load saved permissions; if none exist, apply role-based defaults
+        self.load_permissions(uname, role)
+        # Enable/disable permission controls based on admin role
+        self._set_perm_controls_enabled(False if str(role).lower() == 'admin' else True)
 
     def go_back(self) -> None:
         user = getattr(self.controller, "active_user", None)
@@ -163,6 +202,12 @@ class MembersFrame(tk.Frame):
             conn.close()
             self.refresh_users()
             self.entry_password.delete(0, tk.END)
+            # Initialize default allow-all permissions for this user
+            try:
+                self.load_permissions(uname, self.role_combo.get().strip() or None)
+                self._set_perm_controls_enabled(False if str(self.role_combo.get()).lower() == 'admin' else True)
+            except Exception:
+                pass
         except sqlite3.IntegrityError:
             messagebox.showerror("Hata", "Bu kullanici adi zaten var.")
 
@@ -197,6 +242,11 @@ class MembersFrame(tk.Frame):
             conn.close()
             self.refresh_users()
             self.entry_password.delete(0, tk.END)
+            try:
+                self.load_permissions(uname, role)
+                self._set_perm_controls_enabled(False if str(role).lower() == 'admin' else True)
+            except Exception:
+                pass
 
     def delete_user(self) -> None:
         uid = self.get_selected_id()
@@ -223,6 +273,97 @@ class MembersFrame(tk.Frame):
         conn.close()
         self.refresh_users()
 
+    # --- Permissions helpers ---
+    def _default_allowed_by_role(self, role: str):
+        role = (role or '').lower()
+        if role == 'admin':
+            return {k for k in self._perm_vars.keys()}
+        if role == 'kasiyer':
+            return {'sale', 'return'}
+        if role == 'muhasebe':
+            return {'ledger', 'reports'}
+        if role == 'yonetici':
+            return {'members', 'products', 'investors', 'ledger', 'reports', 'settings'}
+        if role == 'uye':
+            return set()
+        return {k for k in self._perm_vars.keys()}
+
+    def load_permissions(self, username: str, role: str | None = None) -> None:
+        """Load permission rows for username. If none saved, default by role.
+        Uses a presence check so 'hepsi kapalı' durumu da ayırt edilir.
+        """
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS user_permissions (username TEXT, menu_key TEXT, allowed INTEGER, PRIMARY KEY(username, menu_key))")
+            cur.execute("SELECT 1 FROM user_permissions WHERE username=? LIMIT 1", (username,))
+            has_any = bool(cur.fetchone())
+            cur.execute("SELECT menu_key FROM user_permissions WHERE username=? AND allowed=1", (username,))
+            rows = [r[0] for r in cur.fetchall()]
+            conn.close()
+        except Exception:
+            rows = []
+            has_any = False
+        if has_any:
+            allowed = set(rows)
+        else:
+            allowed = self._default_allowed_by_role(role or '')
+        for key, var in self._perm_vars.items():
+            var.set(key in allowed)
+
+    def _apply_role_defaults(self) -> None:
+        """When role combo changes, preselect default permissions for that role
+        (does not save until the user clicks 'Yetkileri Kaydet')."""
+        try:
+            role = self.role_combo.get().strip()
+            allowed = self._default_allowed_by_role(role)
+            for key, var in self._perm_vars.items():
+                var.set(key in allowed)
+        except Exception:
+            pass
+
+    def save_permissions(self) -> None:
+        """Save the checked permissions for the currently selected username."""
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showinfo("Seçim yok", "Önce listeden bir üye seçin.")
+            return
+        _id, uname, _role = self.tree.item(sel[0], "values")
+        if str(_role).lower() == 'admin':
+            messagebox.showinfo("Yetkiler", "Admin her zaman tam yetkilidir ve değiştirilemez.")
+            return
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS user_permissions (username TEXT, menu_key TEXT, allowed INTEGER, PRIMARY KEY(username, menu_key))")
+            # Clear existing
+            cur.execute("DELETE FROM user_permissions WHERE username=?", (uname,))
+            # Insert a presence marker so 'hepsi kapalı' durumu da kaydedilsin
+            cur.execute("INSERT OR REPLACE INTO user_permissions(username, menu_key, allowed) VALUES(?,?,0)", (uname, '__custom__'))
+            # Insert allowed ones
+            for key, var in self._perm_vars.items():
+                if var.get():
+                    cur.execute("INSERT OR REPLACE INTO user_permissions(username, menu_key, allowed) VALUES(?,?,1)", (uname, key))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Yetkiler", "Yetkiler kaydedildi.")
+        except Exception as e:
+            messagebox.showerror("Hata", str(e))
+
+    def _set_perm_controls_enabled(self, enabled: bool) -> None:
+        """Enable/disable permissions UI controls (admin -> disabled)."""
+        st = 'normal' if enabled else 'disabled'
+        try:
+            for cb in self._perm_checks:
+                cb.configure(state=st)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'btn_save_perms'):
+                self.btn_save_perms.configure(state=st)
+        except Exception:
+            pass
+
     def reset_password(self) -> None:
         uid = self.get_selected_id()
         if uid is None:
@@ -238,4 +379,3 @@ class MembersFrame(tk.Frame):
         conn.close()
         self.entry_password.delete(0, tk.END)
         messagebox.showinfo("Tamam", "Sifre guncellendi.")
-

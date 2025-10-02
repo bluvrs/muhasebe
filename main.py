@@ -33,6 +33,40 @@ try:
 except Exception:
     SettingsFrame = None  # type: ignore[assignment]
 
+def menu_key_from_label(label: str) -> str:
+    low = (label or '').lower()
+    if 'üye' in low or 'uye' in low:
+        return 'members'
+    if 'ür' in low or 'urun' in low or 'prod' in low:
+        return 'products'
+    if 'sat' in low and 'iade' not in low:
+        return 'sale'
+    if 'iade' in low:
+        return 'return'
+    if 'gelir' in low or 'gider' in low or 'ledger' in low:
+        return 'ledger'
+    if 'yat' in low:
+        return 'investors'
+    if 'rapor' in low:
+        return 'reports'
+    if 'ayar' in low:
+        return 'settings'
+    return low.replace(' ', '_')
+
+def default_allowed_by_role(role: str) -> set[str]:
+    r = (role or '').lower()
+    if r == 'admin':
+        return {'members','products','sale','return','ledger','investors','reports','settings'}
+    if r == 'kasiyer':
+        return {'sale', 'return'}
+    if r == 'muhasebe':
+        return {'ledger', 'reports'}
+    if r == 'yonetici':
+        return {'members','products','investors','ledger','reports','settings'}
+    if r == 'uye':
+        return set()
+    return {'members','products','sale','return','ledger','investors','reports','settings'}
+
 DB_NAME = "coop.db"
 
 
@@ -47,6 +81,17 @@ def init_db() -> None:
             username TEXT UNIQUE,
             password TEXT,
             role TEXT
+        )
+        """
+    )
+    # Per-user menu permissions (optional). If no rows for a user, defaults to allow-all.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_permissions (
+            username TEXT NOT NULL,
+            menu_key TEXT NOT NULL,
+            allowed INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY(username, menu_key)
         )
         """
     )
@@ -261,6 +306,14 @@ class App(tk.Tk):
                 pass
         self.frames: Dict[Type[tk.Frame], tk.Frame] = {}
         self.active_user: Optional[Dict[str, str]] = None
+        # Disable automatic margin walkers by default to avoid layout drift
+        # on first entry after theme/font changes. Screens manage their own
+        # spacing explicitly.
+        self.auto_margins_enabled: bool = False
+        # Track currently shown frame to allow safe re-render after
+        # base font size changes.
+        self.current_frame_class: Optional[Type[tk.Frame]] = None
+        self.current_frame_kwargs: Dict = {}
 
         container = tk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -275,6 +328,8 @@ class App(tk.Tk):
             "yonetici": ManagerFrame,
             "uye": MemberFrame,
         }
+        # Current user's allowed menu keys (None => allow all)
+        self.user_permissions: Optional[set[str]] = None
 
         # Normalize window title text if mojibake slipped in
         try:
@@ -398,7 +453,25 @@ class App(tk.Tk):
                     pass
         except Exception:
             pass
+        # For volatile screens that are sensitive to initial layout timing,
+        # recreate the frame on every entry so geometry starts from a clean
+        # state (fixes first-entry misalignment). Currently only SalesFrame.
+        try:
+            volatile = frame_class.__name__ in ('SalesFrame',)
+        except Exception:
+            volatile = False
+
         frame = self.frames.get(frame_class)
+        if volatile and frame is not None:
+            try:
+                frame.destroy()
+            except Exception:
+                pass
+            try:
+                del self.frames[frame_class]
+            except Exception:
+                pass
+            frame = None
         if frame is None:
             frame = frame_class(parent=self.container, controller=self)
             self.frames[frame_class] = frame
@@ -406,16 +479,48 @@ class App(tk.Tk):
         if hasattr(frame, "on_show"):
             frame.on_show(**kwargs)
         frame.tkraise()
-        # Ensure inputs have comfortable spacing on most screens (skip Login)
+        # Remember current for potential re-render triggers
         try:
-            if frame.__class__.__name__ != 'LoginFrame':
-                apply_entry_margins(frame, pady=8)
+            self.current_frame_class = frame_class
+            # Shallow copy to avoid accidental external mutation
+            self.current_frame_kwargs = dict(kwargs) if kwargs else {}
         except Exception:
             pass
-        # Ensure all buttons have consistent external margins (skip Login)
+        # Do NOT touch margins immediately; wait for fonts/theme to settle.
+        # Enforce contrasting text colors for classic widgets in the shown frame
         try:
-            if frame.__class__.__name__ != 'LoginFrame':
-                apply_button_margins(frame, padx=12, pady=12)
+            from ui import ensure_contrast_text_colors as _ectc
+            _ectc(frame)
+        except Exception:
+            pass
+        # And ttk.Label per-widget contrast
+        try:
+            from ui import ensure_ttk_label_contrast as _etl
+            _etl(frame)
+        except Exception:
+            pass
+        # Layout fix after fonts/theme settle: run after idle (two passes).
+        try:
+            def _reflow_pass():
+                try:
+                    frame.update_idletasks()
+                except Exception:
+                    pass
+                try:
+                    if self.auto_margins_enabled and frame.__class__.__name__ != 'LoginFrame':
+                        apply_entry_margins(frame, pady=8)
+                        apply_button_margins(frame, padx=12, pady=12)
+                except Exception:
+                    pass
+                # Allow frames to customize post-show reflow
+                try:
+                    if hasattr(frame, 'on_post_show'):
+                        frame.on_post_show()
+                except Exception:
+                    pass
+            # Immediate idle and a second pass shortly after
+            self.after(0, _reflow_pass)
+            self.after(120, _reflow_pass)
         except Exception:
             pass
         # After the frame is shown, fix any mojibake text in its subtree and window title
@@ -424,6 +529,9 @@ class App(tk.Tk):
             self.title(fix_mojibake_text(self.title()) or self.title())
         except Exception:
             pass
+        # Avoid reapplying the whole theme here — it was causing vertical drift
+        # on some screens. Theme is applied centrally; frames handle their own
+        # stabilization in on_show/idle reflow.
 
     def _maximize_startup(self) -> None:
         # Try native maximize first (works on Windows/Linux)
@@ -476,6 +584,8 @@ class App(tk.Tk):
                     frame.on_theme_changed()
         except Exception:
             pass
+        # Avoid forcing a global reflow here; each frame handles its own
+        # layout in on_show/show_frame to prevent cumulative padding drift.
         # Adjust window minimum size for current scale
         try:
             self.set_min_window_for_scale(getattr(self, 'ui_scale', 1.5))
@@ -526,6 +636,32 @@ class App(tk.Tk):
             return
 
         self.active_user = {"username": username, "role": role}
+        # Load per-user permissions (if any). None => allow all
+        try:
+            if str(role).lower() == 'admin':
+                # Admin is always full access; ignore any stored overrides
+                self.user_permissions = None
+            else:
+                conn = sqlite3.connect(DB_NAME)
+                cur = conn.cursor()
+                cur.execute("CREATE TABLE IF NOT EXISTS user_permissions (username TEXT, menu_key TEXT, allowed INTEGER, PRIMARY KEY(username, menu_key))")
+                cur.execute("SELECT menu_key FROM user_permissions WHERE username=? AND allowed=1", (username,))
+                rows = [r[0] for r in cur.fetchall()]
+                conn.close()
+                # For non-admins: never use defaults; show exactly what DB says
+                self.user_permissions = set(rows)
+        except Exception:
+            # On any error, be safe: show nothing for non-admins
+            self.user_permissions = set()
+        # Debug: print current user's resolved permissions
+        try:
+            perms = self.user_permissions
+            if perms is None:
+                print(f"[perm] user={username} role={role} -> ALL")
+            else:
+                print(f"[perm] user={username} role={role} -> {sorted(list(perms))}")
+        except Exception:
+            pass
         self.title("Kooperatif - {}".format(role.title()))
         self.show_frame(frame_class, username=username, role=role)
 
@@ -590,9 +726,22 @@ class LoginFrame(tk.Frame):
         self.controller.authenticate(username, password)
 
     def on_show(self) -> None:
-        self.entry_user.delete(0, tk.END)
-        self.entry_pass.delete(0, tk.END)
-        self.entry_user.focus_set()
+        # Rebuild the login card every time we show this frame.
+        # After navigating between role screens, theme/background tints can change,
+        # and the old labels keep their previous background color which looks like
+        # grey blocks behind the text. Recreating the card ensures all widgets
+        # pick up the current theme/tint correctly.
+        try:
+            self._build_login_card()
+        except Exception:
+            pass
+        # Clear fields and focus username
+        try:
+            self.entry_user.delete(0, tk.END)
+            self.entry_pass.delete(0, tk.END)
+            self.entry_user.focus_set()
+        except Exception:
+            pass
 
     def on_theme_changed(self) -> None:
         # Refresh style for MenuTile buttons if present
@@ -639,9 +788,21 @@ class MenuTile(tk.Label):
             *args,
             **kwargs
         )
+        # Mark this tile to opt out from global recolor passes
+        try:
+            self._preserve_theme = True
+            self._preserve_fg = True
+        except Exception:
+            pass
         # Add padding for larger menu buttons
         self.configure(padx=20, pady=20)
         self._command = command
+        # derive a menu_key from text for permission checks
+        try:
+            key = menu_key_from_label(text)
+            self._menu_key = key
+        except Exception:
+            self._menu_key = None
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
         self.bind("<Button-1>", self._on_click)
@@ -706,25 +867,60 @@ class RoleFrame(tk.Frame):
         # Centered user card with rounded outline
         user_holder = tk.Frame(self)
         user_holder.pack(pady=(0, 10), anchor='n')
-        card, inner = create_card(user_holder, radius=12, padding=10, border='#888')
+        padding_val = 10
+        card, inner = create_card(user_holder, radius=12, padding=padding_val, border='#888')
         card.pack(anchor='center')
         # Save card and inner for later theme updates
         self.card = card
         self.inner = inner
-        # Set a comfortable width for the card, and increase height to 96
+        # Set width and compute height to fit inner content (so canvas border
+        # draws correctly and text is not clipped). Keep pack_propagate(False).
         try:
-            card.configure(width=520, height=96)
-            card.pack_propagate(False)
+            def _fit_card(_e=None):
+                try:
+                    inner.update_idletasks()
+                    h = inner.winfo_reqheight() + padding_val * 2
+                    if h < 72:
+                        h = 72
+                    card.configure(width=520, height=h)
+                    card.pack_propagate(False)
+                except Exception:
+                    pass
+            # Fit after widgets are realized
+            self.after(0, _fit_card)
+            # Second pass to ensure row fits tallest child and no text crops
+            def _fit_row(_e=None):
+                try:
+                    header_row.update_idletasks()
+                    btn_h = logout_btn.winfo_reqheight()
+                    lbl_h = self.user_label.winfo_reqheight()
+                    row_h = max(btn_h, lbl_h) + 8
+                    header_row.grid_rowconfigure(0, minsize=row_h)
+                    inner.update_idletasks()
+                    h = inner.winfo_reqheight() + padding_val * 2 + 8
+                    if h < 80:
+                        h = 80
+                    card.configure(height=h)
+                except Exception:
+                    pass
+            self.after(60, _fit_row)
         except Exception:
             pass
         # Row inside the card: username label (left) + logout button (right)
         header_row = tk.Frame(inner, bg=inner.cget('bg'))
         header_row.pack(fill='x')
+        # Keep a reference for theme updates
+        self.header_row = header_row
+        # Use grid so items are vertically centered within the row
+        header_row.grid_columnconfigure(0, weight=1)
+        header_row.grid_rowconfigure(0, weight=1)
         self.user_label = tk.Label(header_row, text="", bg=inner.cget('bg'))
-        self.user_label.pack(side='left', padx=12, pady=6, fill='x', expand=True)
-        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Menu.TButton')
+        self.user_label.grid(row=0, column=0, padx=12, pady=6, sticky='nsw')
+        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Menu.TButton', padding=(24,12))
         # Use default ttk font for logout; MenuButtonFont is only for menu tiles
-        logout_btn.pack(side='right', padx=12, pady=6, anchor='e')
+        logout_btn.grid(row=0, column=1, padx=12, pady=6, sticky='nse')
+        # Keep reference to reapply padding after theme changes
+        self.logout_btn = logout_btn
 
         if description:
             tk.Label(self, text=description, wraplength=360, justify="center").pack(pady=20)
@@ -837,6 +1033,12 @@ class RoleFrame(tk.Frame):
             for btn in self._buttons:
                 if hasattr(btn, "refresh_style"):
                     btn.refresh_style(scale=ui_scale)
+        # Ensure logout button keeps its vertical padding after theme restyle
+        try:
+            if hasattr(self, 'logout_btn'):
+                self.logout_btn.configure(style='Menu.TButton', padding=(24,12))
+        except Exception:
+            pass
 
         # Update card and inner backgrounds if they exist
         try:
@@ -909,6 +1111,96 @@ class RoleFrame(tk.Frame):
 
     def on_show(self, username: str, role: str) -> None:
         self.user_label.config(text="{} ({})".format(username, role))
+        # Apply per-user permissions by hiding disallowed tiles
+        try:
+            allowed = getattr(self.controller, 'user_permissions', None)
+            if hasattr(self, '_buttons') and self._buttons:
+                for btn in self._buttons:
+                    key = getattr(btn, '_menu_key', None)
+                    ok = True if allowed is None else (key in allowed)
+                    try:
+                        if ok:
+                            btn.grid()  # ensure visible
+                        else:
+                            btn.grid_remove()
+                    except Exception:
+                        pass
+                # Relayout visible tiles to remove gaps
+                try:
+                    self._relayout_visible_tiles(allowed)
+                except Exception:
+                    pass
+                # Debug: print visible tile keys actually shown on screen
+                try:
+                    vis = []
+                    for btn in self._buttons:
+                        if getattr(btn, 'winfo_ismapped', lambda: False)():
+                            k = getattr(btn, '_menu_key', None)
+                            if k:
+                                vis.append(k)
+                    print(f"[perm] visible_menus={sorted(vis)}")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _relayout_visible_tiles(self, allowed_set) -> None:
+        try:
+            if not hasattr(self, '_buttons'):
+                return
+            # Determine which tiles should be visible per allowed_set
+            def _is_allowed(btn) -> bool:
+                try:
+                    key = getattr(btn, '_menu_key', None)
+                    return True if allowed_set is None else (key in allowed_set)
+                except Exception:
+                    return False
+            tiles = [b for b in self._buttons if _is_allowed(b)]
+            if not tiles:
+                return
+            # Determine columns based on width similar to initial layout
+            try:
+                w = self.grid_frame.winfo_width()
+                if w <= 1:
+                    w = self.winfo_width()
+            except Exception:
+                w = 800
+            cols = 1
+            if w >= 1400:
+                cols = 4
+            elif w >= 1000:
+                cols = 3
+            elif w >= 680:
+                cols = 2
+            # Clear existing grid weights
+            for i in range(0, 8):
+                try:
+                    self.grid_frame.grid_columnconfigure(i, weight=0)
+                except Exception:
+                    pass
+            # Place tiles densely
+            idx = 0
+            for tile in tiles:
+                r, c = divmod(idx, cols)
+                try:
+                    tile.grid_configure(row=r, column=c, padx=10, pady=10, sticky='nsew')
+                except Exception:
+                    pass
+                idx += 1
+            # Hide disallowed tiles explicitly
+            for tile in self._buttons:
+                if tile not in tiles:
+                    try:
+                        tile.grid_remove()
+                    except Exception:
+                        pass
+            for c in range(cols):
+                try:
+                    self.grid_frame.grid_columnconfigure(c, weight=1)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 class AdminFrame(RoleFrame):
@@ -990,11 +1282,8 @@ class CashierFrame(RoleFrame):
         description = "Barkod okutun ve işlemleri tamamlayın."
         actions = ["Yeni satış", "İade işlemi"]
         handlers: Dict[str, Callable[[], None]] = {}
-        # Kasiyer sadece satis yapabilsin: iade eylemini menuden kaldir
-        try:
-            actions = [a for a in actions if 'Yeni' in str(a)]
-        except Exception:
-            pass
+        # Menüler artık sadece DB yetkilerine göre filtrelenecek; burada
+        # hiçbirini zorla çıkarmıyoruz.
         if SalesFrame is not None:
             handlers["Yeni satış"] = lambda: controller.show_frame(SalesFrame)  # type: ignore[arg-type]
         else:
