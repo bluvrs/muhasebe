@@ -269,6 +269,16 @@ class App(tk.Tk):
 
         self.show_frame(LoginFrame)
 
+    # Safety net: if any widget accidentally binds/assigns the App instance
+    # as a callback (e.g., command=self.controller), Tk will try to call the
+    # App object. Make it callable to avoid crashing; no-op with a warning.
+    def __call__(self, *args, **kwargs):  # type: ignore[override]
+        try:
+            import sys
+            print("[warn] App object invoked as callback; ignoring.", file=sys.stderr)
+        except Exception:
+            pass
+
     def show_frame(self, frame_class: Type[tk.Frame], **kwargs) -> None:
         # Ensure bigger fonts on Login (2.0x); otherwise use saved
         try:
