@@ -928,8 +928,13 @@ class LoginFrame(tk.Frame):
         self.entry_pass.pack(fill='x', padx=24, pady=(0, 10))
         self.entry_pass.bind('<Return>', lambda _e: self.do_login())
 
-        # Use theme base button style so it matches current theme
-        ttk.Button(inner, text='Giris Yap', command=self.do_login, style='TButton').pack(pady=(8, 6))
+        # Use classic tk.Button for full control of bg/fg across themes
+        self.btn_login = tk.Button(inner, text='Giris Yap', command=self.do_login, relief='flat', bd=0, highlightthickness=0, padx=20, pady=10)
+        self.btn_login.pack(pady=(8, 6))
+        try:
+            self._apply_login_button_theme()
+        except Exception:
+            pass
 
         # Ensure the login card is tall enough for current theme/font
         try:
@@ -989,6 +994,27 @@ class LoginFrame(tk.Frame):
                     if hasattr(btn, "refresh_style"):
                         btn.refresh_style(scale=ui_scale)
         self._build_login_card()
+        try:
+            self._apply_login_button_theme()
+        except Exception:
+            pass
+    
+    def _apply_login_button_theme(self) -> None:
+        try:
+            theme = getattr(self.controller, 'saved_theme', None) or 'light'
+            low = str(theme).lower()
+            if 'dark' in low or 'koyu' in low:
+                bbg, babg, bfg = '#f0f0f0', '#e6e6e6', '#000000'
+            else:
+                bbg, babg, bfg = '#1e2023', '#2a2f33', '#ffffff'
+            # Apply directly to classic tk.Button for reliable colors
+            if hasattr(self, 'btn_login') and self.btn_login:
+                try:
+                    self.btn_login.configure(bg=bbg, fg=bfg, activebackground=babg, activeforeground=bfg)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 

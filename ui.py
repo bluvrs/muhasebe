@@ -308,7 +308,7 @@ def apply_theme(root: tk.Tk, scale: Optional[float] = None, theme_name: Optional
             pass
         # Then, unify ttk control backgrounds for card containers
         try:
-            _apply_card_control_styles(root, theme_name)
+            ensure_card_control_backgrounds(root)
         except Exception:
             pass
     except Exception:
@@ -1242,7 +1242,8 @@ def ensure_contrast_text_colors(container: tk.Misc) -> None:
 
 def ensure_ttk_contrast_styles(root: tk.Misc) -> None:
     """Ensure ttk styles have readable foregrounds vs their backgrounds.
-    Uses theme mode heuristic. Covers: TButton, Solid.TButton, Menu.TButton,
+    Uses theme mode heuristic.
+    Covers: TButton, Solid.TButton, Menu.TButton, Login.TButton, Logout.TButton,
     TEntry, TSpinbox, TCombobox, Treeview headings/rows.
     """
     try:
@@ -1257,7 +1258,7 @@ def ensure_ttk_contrast_styles(root: tk.Misc) -> None:
             btn_fg = '#ffffff'  # light theme uses dark buttons
             entry_fg = '#222222'
             tree_fg = '#222222'
-        for sty in ('TButton', 'Solid.TButton', 'Menu.TButton'):
+        for sty in ('TButton', 'Solid.TButton', 'Menu.TButton', 'Login.TButton', 'Logout.TButton'):
             try:
                 style.configure(sty, foreground=btn_fg)
                 style.map(sty, foreground=[('active', btn_fg), ('!disabled', btn_fg)])
