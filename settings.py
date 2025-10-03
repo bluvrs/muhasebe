@@ -1,7 +1,7 @@
 ﻿import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
-from ui import make_back_arrow, apply_theme, rounded_outline, smart_tinted_bg, create_card, refresh_card_tints, ensure_card_control_backgrounds
+from ui import make_back_arrow, apply_theme, rounded_outline, smart_tinted_bg, create_card, refresh_card_tints, ensure_card_control_backgrounds, ensure_ttk_contrast_styles, ensure_ttk_label_contrast
 from tkinter import ttk
 import os
 import shutil
@@ -70,6 +70,8 @@ class SettingsFrame(tk.Frame):
     def __init__(self, parent: tk.Misc, controller) -> None:
         super().__init__(parent)
         self.controller = controller
+        # Guard to prevent programmatic updates from firing change handlers
+        self._suspend_base_pt_events = False
 
         header = tk.Frame(self)
         header.pack(fill='x')
@@ -191,7 +193,8 @@ class SettingsFrame(tk.Frame):
                     self._base_pt_job = self.after(120, self.on_base_pt_change)
                 except Exception:
                     self.on_base_pt_change()
-            self.var_base_pt.trace_add('write', lambda *a: _debounce_apply())
+            # Only react to user-initiated changes; ignore programmatic loads
+            self.var_base_pt.trace_add('write', lambda *a: (None if getattr(self, '_suspend_base_pt_events', False) else _debounce_apply()))
         except Exception:
             pass
         _autosize_card(scale_card, scale_inner, min_w=560, pad=12, min_h=160)
@@ -243,6 +246,13 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
 
+        # Ensure header bg matches app bg before recoloring children
+        try:
+            if hasattr(self, 'header_frame') and self.header_frame:
+                self.header_frame.configure(bg=self.cget('bg'))
+        except Exception:
+            pass
+
         # Enforce fixed style for all Buttons, Checkbuttons, Labels (classic tk widgets) in this screen
         def _update_widget_style_recursive(widget):
             # Only classic tk widgets, skip ttk widgets
@@ -261,12 +271,13 @@ class SettingsFrame(tk.Frame):
                                 btn_text = child.cget("text")
                             except Exception:
                                 pass
-                            # All buttons (including Kaydet) get the same dark style if is_dark,
-                            # or same as dark style for light theme (per instructions)
+                            # Classic buttons: adapt to theme for readability
                             if is_dark:
-                                child.configure(bg="#1e2023", fg="white",
-                                                activebackground="#2a2f33", activeforeground="white")
+                                # Dark app theme uses light card surface; use dark text on light bg
+                                child.configure(bg="#ffffff", fg="black",
+                                                activebackground="#dddddd", activeforeground="black")
                             else:
+                                # Light app theme uses dark card surface; use light text on dark bg
                                 child.configure(bg="#1e2023", fg="white",
                                                 activebackground="#2a2f33", activeforeground="white")
                         # Checkbutton: parent bg, fg depends on theme, selectcolor=parent_bg
@@ -299,14 +310,15 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
 
+        # Ensure ttk widgets (Buttons, Labels, Entries, etc.) have contrasting text
+        try:
+            ensure_ttk_contrast_styles(self)
+            ensure_ttk_label_contrast(self)
+        except Exception:
+            pass
+
         # Refresh back arrow icon/colors to match new theme
         try:
-            # Ensure header bg tracks current app bg so arrow contrast is correct
-            try:
-                if hasattr(self, 'header_frame') and self.header_frame:
-                    self.header_frame.configure(bg=self.cget('bg'))
-            except Exception:
-                pass
             if hasattr(self, 'back_arrow') and self.back_arrow:
                 if hasattr(self.back_arrow, 'refresh_theme'):
                     self.back_arrow.refresh_theme()
@@ -365,7 +377,17 @@ class SettingsFrame(tk.Frame):
             conn.close()
             val = str(r_base[0]) if r_base and r_base[0] else '12'
             if hasattr(self, 'var_base_pt'):
-                self.var_base_pt.set(val)
+                try:
+                    self._suspend_base_pt_events = True
+                except Exception:
+                    pass
+                try:
+                    self.var_base_pt.set(val)
+                finally:
+                    try:
+                        self._suspend_base_pt_events = False
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -556,15 +578,7 @@ class SettingsFrame(tk.Frame):
                 self.controller.refresh_theme()
         except Exception:
             pass
-        # Re-show the current screen to rebuild layout with new base font.
-        try:
-            cf = getattr(self.controller, 'current_frame_class', None)
-            if cf is not None:
-                kw = getattr(self.controller, 'current_frame_kwargs', {}) or {}
-                # Best effort: reopen same screen; SalesFrame is recreated already.
-                self.controller.show_frame(cf, **kw)
-        except Exception:
-            pass
+        # Avoid re-showing the screen to prevent refresh loops/blinking
         self.status_var.set(f"Temel yazı: {new_base} pt, ölçek: {new_scale}x")
 
     # --- DB Utils ---

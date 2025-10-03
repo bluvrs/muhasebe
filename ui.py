@@ -332,7 +332,7 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
         root.option_add('*Entry.InsertBackground', fg)
         root.option_add('*Entry.SelectBackground', sel_bg)
         root.option_add('*Entry.SelectForeground', sel_fg)
-        # tk.Button (light button on dark bg)
+        # tk.Button: light background with dark text on dark theme
         root.option_add('*Button.Background', '#f0f0f0')
         root.option_add('*Button.Foreground', '#000000')
         root.option_add('*Button.ActiveBackground', '#e6e6e6')
@@ -359,12 +359,59 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     style.configure('.', background=bg, foreground=fg)
     style.configure('TFrame', background=bg)
     style.configure('TLabel', background=bg, foreground=fg)
-    # Buttons should be light with dark text for visibility and FLAT
+    # ttk Buttons: light background with dark text on dark theme
     light_btn_bg = '#f0f0f0'
     light_btn_bg_active = '#e6e6e6'
     style.configure('TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
                     padding=(20, 16))
     style.map('TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
+    # Logout button style (header): same palette as TButton but slightly tighter padding
+    # Provide solid layouts for custom button styles to ensure bg is painted
+    try:
+        style.layout('Logout.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+        style.layout('Login.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+    except Exception:
+        pass
+    style.configure('Logout.TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
+                    padding=(16, 10))
+    style.map('Logout.TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')])
+    # Login button style: a bit larger for prominence, same palette
+    style.configure('Login.TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
+                    padding=(24, 18))
+    style.map('Login.TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')])
+    # Ensure Solid.TButton follows the same palette (used by Login button)
+    try:
+        style.layout('Solid.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+    except Exception:
+        pass
+    style.configure('Solid.TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
+                    padding=(20, 16))
+    style.map('Solid.TButton', background=[('pressed', light_btn_bg_active), ('active', light_btn_bg_active), ('focus', light_btn_bg)],
+                                 foreground=[('disabled', '#bbbbbb'), ('!disabled', '#000000')])
     style.configure('TNotebook', background=bg)
     style.configure('TNotebook.Tab', background=accent, foreground=fg)
     # Ensure selected tab foreground also updates (avoid white-on-white when
@@ -398,9 +445,9 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
         style.configure('TEntry', padding=(8, 6))
     except Exception:
         pass
-    # Make combobox/button visuals readable on dark theme
-    style.configure('TCombobox', fieldbackground=light_btn_bg, background=light_btn_bg, foreground='#000000')
-    style.map('TCombobox', fieldbackground=[('readonly', light_btn_bg)], foreground=[('readonly', '#000000')])
+    # Make combobox visuals readable on dark theme (light pop)
+    style.configure('TCombobox', fieldbackground='#f0f0f0', background='#f0f0f0', foreground='#000000')
+    style.map('TCombobox', fieldbackground=[('readonly', '#f0f0f0')], foreground=[('readonly', '#000000')])
     # Menu buttons style (will get padding updated per-scale at runtime)
     try:
         style.layout('Menu.TButton', [
@@ -423,7 +470,7 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
     bg = '#ffffff'
     fg = '#222222'
     accent = '#e0e0e0'  # general light surfaces (tabs, headings)
-    btn_bg = '#1e2023'  # requested button color
+    btn_bg = '#1e2023'  # dark button on light theme
     btn_bg_active = '#2a2f33'
     btn_fg = '#ffffff'
     sel_bg = '#cde8ff'
@@ -475,14 +522,42 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
                 ]})
             ]})
         ])
+        # Solid button palette
         style.configure('Solid.TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0,
-                        padding=(20, 16))  # increase inner horizontal/vertical padding
+                        padding=(20, 16))
         style.map('Solid.TButton',
-                   background=[('pressed', btn_bg_active), ('active', btn_bg_active), ('focus', btn_bg)],
-                   foreground=[('disabled', '#bbbbbb'), ('!disabled', btn_fg)])
-        # Also try to set Button element colors used by many themes
-        style.configure('TButton', background=btn_bg, foreground=btn_fg, padding=(20, 16))
-        style.map('TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)])
+                  background=[('pressed', btn_bg_active), ('active', btn_bg_active), ('focus', btn_bg)],
+                  foreground=[('disabled', '#bbbbbb'), ('!disabled', btn_fg)])
+        # Standard / header / login buttons
+    except Exception:
+        pass
+    # Provide solid layouts for custom button styles to ensure bg is painted
+    try:
+        style.layout('Logout.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+        style.layout('Login.TButton', [
+            ('Button.border', {'sticky': 'nswe', 'children': [
+                ('Button.focus', {'sticky': 'nswe', 'children': [
+                    ('Button.padding', {'sticky': 'nswe', 'children': [
+                        ('Button.label', {'sticky': 'nswe'})
+                    ]})
+                ]})
+            ]})
+        ])
+    except Exception:
+        style.configure('TButton', background=btn_bg, foreground=btn_fg, padding=(20, 16), relief='flat', borderwidth=0)
+        style.map('TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
+        style.configure('Logout.TButton', background=btn_bg, foreground=btn_fg, padding=(16, 10), relief='flat', borderwidth=0)
+        style.map('Logout.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
+        style.configure('Login.TButton', background=btn_bg, foreground=btn_fg, padding=(24, 18), relief='flat', borderwidth=0)
+        style.map('Login.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
         # Menu buttons style (will get padding updated per-scale at runtime)
         style.layout('Menu.TButton', [
             ('Button.border', {'sticky': 'nswe', 'children': [
@@ -495,7 +570,7 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
         ])
         style.configure('Menu.TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0,
                         padding=(20, 16), anchor='center', justify='center', font='MenuButtonFont')
-        style.map('Menu.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)])
+        style.map('Menu.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
     except Exception:
         style.configure('TButton', background=btn_bg, foreground=btn_fg, relief='flat', borderwidth=0)
         style.map('TButton', background=[('active', btn_bg_active)], foreground=[('active', btn_fg)], relief=[('pressed', 'flat'), ('!pressed', 'flat')])
@@ -903,7 +978,96 @@ def ensure_card_control_backgrounds(root: tk.Misc) -> None:
                         w.configure(style=sn)  # type: ignore[call-arg]
                     except Exception:
                         pass
-                elif cls in ('Treeview',):
+                elif cls in ('TButton',):
+                    # Apply theme-specific button palette (not card bg)
+                    mode = _theme_mode(root)
+                    if mode == 'dark':
+                        bbg, babg, bfg = '#f0f0f0', '#e6e6e6', '#000000'
+                    else:
+                        bbg, babg, bfg = '#1e2023', '#2a2f33', '#ffffff'
+                    sn = _style_name('TButton', inner_bg)
+                    try:
+                        style.configure(sn, background=bbg, foreground=bfg)
+                        style.map(sn, background=[('active', babg)], foreground=[('active', bfg)])
+                    except Exception:
+                        pass
+                    try:
+                        cur_style = getattr(w, 'cget', lambda *_: None)('style')
+                        if not cur_style or str(cur_style) in ('', 'TButton'):
+                            w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                elif cls in ('TCheckbutton',):
+                    sn = _style_name('TCheckbutton', inner_bg)
+                    try:
+                        style.configure(sn, background=inner_bg, foreground=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                elif cls in ('TRadiobutton',):
+                    sn = _style_name('TRadiobutton', inner_bg)
+                    try:
+                        style.configure(sn, background=inner_bg, foreground=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                elif cls in ('TLabel',):
+                    sn = _style_name('TLabel', inner_bg)
+                    try:
+                        style.configure(sn, background=inner_bg, foreground=fg)
+                    except Exception:
+                        pass
+                    try:
+                        w.configure(style=sn)  # type: ignore[call-arg]
+                    except Exception:
+                        pass
+                # If widget uses an explicit button style, override it with theme-specific palette
+                try:
+                    cur_style = getattr(w, 'cget', lambda *_: None)('style')
+                    if cur_style:
+                        cs = str(cur_style)
+                        if 'Solid.TButton' in cs:
+                            mode = _theme_mode(root)
+                            if mode == 'dark':
+                                bbg, babg, bfg = '#f0f0f0', '#e6e6e6', '#000000'
+                            else:
+                                bbg, babg, bfg = '#1e2023', '#2a2f33', '#ffffff'
+                            sn = _style_name('Solid.TButton', inner_bg)
+                            try:
+                                style.configure(sn, background=bbg, foreground=bfg)
+                                style.map(sn, background=[('active', babg)], foreground=[('active', bfg)])
+                            except Exception:
+                                pass
+                            try:
+                                w.configure(style=sn)  # type: ignore[call-arg]
+                            except Exception:
+                                pass
+                        elif 'Menu.TButton' in cs:
+                            mode = _theme_mode(root)
+                            if mode == 'dark':
+                                bbg, babg, bfg = '#f0f0f0', '#e6e6e6', '#000000'
+                            else:
+                                bbg, babg, bfg = '#1e2023', '#2a2f33', '#ffffff'
+                            sn = _style_name('Menu.TButton', inner_bg)
+                            try:
+                                style.configure(sn, background=bbg, foreground=bfg)
+                                style.map(sn, background=[('active', babg)], foreground=[('active', bfg)])
+                            except Exception:
+                                pass
+                            try:
+                                w.configure(style=sn)  # type: ignore[call-arg]
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                # Continue with other ttk widget types
+                if cls in ('Treeview',):
                     sn = _style_name('Treeview', inner_bg)
                     try:
                         style.configure(sn, background=inner_bg, fieldbackground=inner_bg, foreground=fg)

@@ -875,10 +875,10 @@ class App(tk.Tk):
         # Debug: print current user's resolved permissions
         try:
             perms = self.user_permissions
-            if perms is None:
-                print(f"[perm] user={username} role={role} -> ALL")
-            else:
-                print(f"[perm] user={username} role={role} -> {sorted(list(perms))}")
+            # if perms is None:
+            #     print(f"[perm] user={username} role={role} -> ALL")
+            # else:
+            #     print(f"[perm] user={username} role={role} -> {sorted(list(perms))}")
         except Exception:
             pass
         self.title("Kooperatif - {}".format(role.title()))
@@ -928,7 +928,25 @@ class LoginFrame(tk.Frame):
         self.entry_pass.pack(fill='x', padx=24, pady=(0, 10))
         self.entry_pass.bind('<Return>', lambda _e: self.do_login())
 
-        ttk.Button(inner, text='Giris Yap', command=self.do_login, style='Solid.TButton').pack(pady=(8, 6))
+        # Use theme base button style so it matches current theme
+        ttk.Button(inner, text='Giris Yap', command=self.do_login, style='TButton').pack(pady=(8, 6))
+
+        # Ensure the login card is tall enough for current theme/font
+        try:
+            def _resize_card():
+                try:
+                    inner.update_idletasks()
+                    req_h = inner.winfo_reqheight()
+                    # Add slack for borders/padding
+                    target_h = max(420, req_h + 28)
+                    self.card_container.configure(height=target_h)
+                except Exception:
+                    pass
+            # run two passes to catch late style application
+            self.after(0, _resize_card)
+            self.after(120, _resize_card)
+        except Exception:
+            pass
 
 
     def _on_return(self, event: tk.Event) -> None:  # type: ignore[name-defined]
@@ -1113,16 +1131,16 @@ class RoleFrame(tk.Frame):
                     header_row.update_idletasks()
                     btn_h = logout_btn.winfo_reqheight()
                     lbl_h = self.user_label.winfo_reqheight()
-                    row_h = max(btn_h, lbl_h) + 8
+                    row_h = max(btn_h, lbl_h) + 12
                     header_row.grid_rowconfigure(0, minsize=row_h)
                     inner.update_idletasks()
-                    h = inner.winfo_reqheight() + padding_val * 2 + 8
-                    if h < 80:
+                    h = inner.winfo_reqheight() + padding_val * 2 + 14
+                    if h < 92:
                         h = 80
                     card.configure(height=h)
                 except Exception:
                     pass
-            self.after(60, _fit_row)
+            self.after(80, _fit_row)
         except Exception:
             pass
         # Row inside the card: username label (left) + logout button (right)
@@ -1135,7 +1153,7 @@ class RoleFrame(tk.Frame):
         header_row.grid_rowconfigure(0, weight=1)
         self.user_label = tk.Label(header_row, text="", bg=inner.cget('bg'))
         self.user_label.grid(row=0, column=0, padx=12, pady=6, sticky='nsw')
-        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Menu.TButton', padding=(24,12))
+        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Logout.TButton', padding=(16,10))
         # Use default ttk font for logout; MenuButtonFont is only for menu tiles
         logout_btn.grid(row=0, column=1, padx=12, pady=6, sticky='nse')
         # Keep reference to reapply padding after theme changes
@@ -1258,7 +1276,7 @@ class RoleFrame(tk.Frame):
         # Ensure logout button keeps its vertical padding after theme restyle
         try:
             if hasattr(self, 'logout_btn'):
-                self.logout_btn.configure(style='Menu.TButton', padding=(24,12))
+                self.logout_btn.configure(style='Logout.TButton', padding=(16,10))
         except Exception:
             pass
 
