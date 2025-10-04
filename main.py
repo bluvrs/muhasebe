@@ -1927,7 +1927,7 @@ class LoginFrame(tk.Frame):
         # Plain rectangular login card (no rounded canvas)
         tint = smart_tinted_bg(self)
         self.card_container = tk.Frame(self, bg=tint, bd=1, relief='solid')
-        self.card_container.place(relx=0.5, rely=0.5, anchor='center', width=560, height=480)
+        self.card_container.place(relx=0.5, rely=0.5, anchor='center', width=560, height=460)
 
         inner = tk.Frame(self.card_container, bg=tint)
         inner.pack(fill='both', expand=True, padx=20, pady=16)
@@ -1959,7 +1959,7 @@ class LoginFrame(tk.Frame):
                     inner.update_idletasks()
                     req_h = inner.winfo_reqheight()
                     # Add slack for borders/padding
-                    target_h = max(480, req_h + 28)
+                    target_h = max(460, req_h + 28)
                     self.card_container.configure(height=target_h)
                 except Exception:
                     pass
