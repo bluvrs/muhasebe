@@ -131,7 +131,7 @@ class SettingsFrame(tk.Frame):
                     pass
                 card.configure(width=req_w, height=height)
             except Exception:
-                # Ã–lçüm baÅŸarısız olursa güvenli bir yükseklik kullan
+                # Ölçüm başarısız olursa güvenli bir yükseklik kullan
                 card.configure(width=min_w, height=200)
         name_holder = tk.Frame(tab_name)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
@@ -144,10 +144,10 @@ class SettingsFrame(tk.Frame):
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
         self.entry_school = ttk.Entry(row_name, width=40)
-        # Metin kutusu ile buton arasÃ„Â±nÃ„Â± aÃƒÂ§mak iÃƒÂ§in boÃ…Å¸luklarÃ„Â± artÃ„Â±r
+        # Metin kutusu ile buton arasını açmak için boşlukları artır
         self.entry_school.pack(side='left', padx=(0, 12))
         ttk.Button(row_name, text="Kaydet", command=self.save, style='Solid.TButton').pack(side='right', padx=(12, 0))
-        # Kart yÃƒÂ¼ksekliÃ„Å¸ini iÃƒÂ§eriÃ„Å¸e gÃƒÂ¶re ayarla (Kaydet butonu gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼r kalsÃ„Â±n)
+        # Kart yüksekliÃ„Å¸ini içeriÃ„Å¸e göre ayarla (Kaydet butonu görünür kalsın)
         _autosize_card(name_card, name_inner, min_w=560, pad=12, min_h=180)
         name_card.pack_propagate(False)
 
@@ -166,7 +166,7 @@ class SettingsFrame(tk.Frame):
         tk.Label(sw_row, text="Koyu Tema", bg=tint_theme).pack(side='left', padx=(0, 8))
         self.theme_switch = IOSSwitch(sw_row, variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
         self.theme_switch.pack(side='left')
-        # Tema deÄŸiÅŸimini anında uygula (yeniden baÅŸlatma gerekmez)
+        # Tema değişimini anında uygula (yeniden başlatma gerekmez)
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
 
@@ -241,7 +241,7 @@ class SettingsFrame(tk.Frame):
         ttk.Button(btn_row, text="Yedekle", command=self.backup_db, style='Solid.TButton').pack(side='left', padx=6)
         ttk.Button(btn_row, text="Sıfırla", command=self.reset_db, style='Solid.TButton').pack(side='left', padx=6)
         # Restart button (hidden until reset)
-        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden BaÅŸlat", command=self.restart_app, style='Solid.TButton')
+        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden Başlat", command=self.restart_app, style='Solid.TButton')
 
         _autosize_card(db_card, db_inner, min_w=560, pad=12, min_h=180)
         db_card.pack_propagate(False)
@@ -541,7 +541,7 @@ class SettingsFrame(tk.Frame):
         self.status_var.set("Okul adı kaydedildi.")
 
     def on_theme_toggle(self) -> None:
-        # Temayı kaydet ve anında uygula (yeniden baÅŸlatma yok)
+        # Temayı kaydet ve anında uygula (yeniden başlatma yok)
         theme_key = 'dark' if self.var_dark.get() else 'light'
         # Kaydet
         try:
@@ -556,7 +556,7 @@ class SettingsFrame(tk.Frame):
             conn.close()
         except Exception:
             pass
-        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme çaÄŸır
+        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme çağır
         try:
             try:
                 scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
@@ -566,7 +566,7 @@ class SettingsFrame(tk.Frame):
                 base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
             except Exception:
                 base_pt = getattr(self.controller, 'saved_base_pt', 12)
-            # Kaydı önce güncelle ki refresh_theme doÄŸru temayı uygulasın
+            # Kaydı önce güncelle ki refresh_theme doğru temayı uygulasın
             try:
                 self.controller.saved_theme = theme_key
                 self.controller.saved_scale = float(scale_val)
@@ -614,10 +614,10 @@ class SettingsFrame(tk.Frame):
             except Exception:
                 pass
             try:
-                messagebox.showinfo("Tema", "Tema deÄŸiÅŸtirildi. Temanız uygulamayı yeniden baÅŸlattıÄŸınızda tam olarak uygulanacaktır.")
+                messagebox.showinfo("Tema", "Tema değiştirildi. Temanız uygulamayı yeniden başlattığınızda tam olarak uygulanacaktır.")
             except Exception:
                 pass
-            self.status_var.set("Tema kaydedildi. Yeniden baÅŸlatınca tam uygulanır.")
+            self.status_var.set("Tema kaydedildi. Yeniden başlatınca tam uygulanır.")
         except Exception:
             pass
     def _init_theme_list(self) -> None:
@@ -665,7 +665,7 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         # Only update status message at the end
-        self.status_var.set(f"Ã–lçek uygulandı: {scale_val}x")
+        self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
 
     def on_base_pt_change(self) -> None:
         # Persist and apply base font point size.
@@ -731,10 +731,10 @@ class SettingsFrame(tk.Frame):
             shutil.copy2(DB_NAME, dst)
             messagebox.showinfo("Yedekleme", f"Yedek alındı:\n{dst}")
         except Exception as e:
-            messagebox.showerror("Yedekleme HatasÃ„Â±", str(e))
+            messagebox.showerror("Yedekleme Hatası", str(e))
 
     def reset_db(self) -> None:
-        if not messagebox.askyesno("Sıfırlama", "Veri Tabanını Sıfırlamak istediÄŸinize emin misiniz?\nMevcut dosya yedek kopyası alınacaktır."):
+        if not messagebox.askyesno("Sıfırlama", "Veri Tabanını Sıfırlamak istediğinize emin misiniz?\nMevcut dosya yedek kopyası alınacaktır."):
             return
         try:
             # Backup first
@@ -761,10 +761,10 @@ class SettingsFrame(tk.Frame):
             except Exception:
                 pass
         except Exception as e:
-            messagebox.showerror("Sıfırlama HatasÃ„Â±", str(e))
+            messagebox.showerror("Sıfırlama Hatası", str(e))
 
     def restart_app(self) -> None:
-        if not messagebox.askyesno("Yeniden BaÅŸlat", "Uygulama yeniden baÅŸlatılsın mı?"):
+        if not messagebox.askyesno("Yeniden Başlat", "Uygulama yeniden başlatılsın mı?"):
             return
         import subprocess, time
         try:
@@ -780,10 +780,10 @@ class SettingsFrame(tk.Frame):
                     try:
                         os.startfile(sys.argv[0])
                     except Exception as _e:
-                        messagebox.showerror("Yeniden BaÃ…Å¸latma HatasÃ„Â±", str(_e))
+                        messagebox.showerror("Yeniden Başlatma Hatası", str(_e))
                         return
         except Exception as e:
-            messagebox.showerror("Yeniden BaÃ…Å¸latma HatasÃ„Â±", str(e))
+            messagebox.showerror("Yeniden Başlatma Hatası", str(e))
             return
         try:
             self.controller.destroy()
