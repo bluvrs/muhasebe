@@ -79,6 +79,7 @@ class MembersFrame(tk.Frame):
             ('investors', 'Yatırımcılar'),
             ('reports', 'Raporlar'),
             ('settings', 'Ayarlar'),
+            ('db', 'Veri Tabani islemleri'),
         ]
         row = 0
         col = 0
@@ -213,11 +214,17 @@ class MembersFrame(tk.Frame):
                 "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                 (uname, pwd, role),
             )
+            # Save current checkbox selections as initial permissions
+            cur.execute("CREATE TABLE IF NOT EXISTS user_permissions (username TEXT, menu_key TEXT, allowed INTEGER, PRIMARY KEY(username, menu_key))")
+            cur.execute("DELETE FROM user_permissions WHERE username=?", (uname,))
+            cur.execute("INSERT OR REPLACE INTO user_permissions(username, menu_key, allowed) VALUES(?,?,0)", (uname, '__custom__'))
+            for key, var in self._perm_vars.items():
+                if var.get():
+                    cur.execute("INSERT OR REPLACE INTO user_permissions(username, menu_key, allowed) VALUES(?,?,1)", (uname, key))
             conn.commit()
             conn.close()
             self.refresh_users()
             self.entry_password.delete(0, tk.END)
-            # Initialize default allow-all permissions for this user
             try:
                 self.load_permissions(uname, self.role_combo.get().strip() or None)
                 self._set_perm_controls_enabled(False if str(self.role_combo.get()).lower() == 'admin' else True)

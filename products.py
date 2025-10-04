@@ -278,3 +278,88 @@ class ProductsFrame(tk.Frame):
         self.entry_search.delete(0, tk.END)
         self.refresh()
 
+# --- Runtime enhancements: clear inputs after add, scroll to new row ---
+def _pf_clear_product_form(self) -> None:
+    try:
+        self.entry_name.delete(0, tk.END)
+        self.entry_barcode.delete(0, tk.END)
+        self.entry_price.delete(0, tk.END)
+        getattr(self, 'entry_cost', self.entry_price).delete(0, tk.END)
+        self.entry_stock.delete(0, tk.END)
+        self.combo_unit.set("adet")
+        try:
+            self.entry_barcode.focus_set()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+def _pf_add_product(self) -> None:
+    name = self.entry_name.get().strip()
+    barcode = self.entry_barcode.get().strip() or None
+    price = self._parse_float(self.entry_price.get().strip(), 0.0)
+    cost = self._parse_float(getattr(self, 'entry_cost', self.entry_price).get().strip(), 0.0)
+    stock = self._parse_float(self.entry_stock.get().strip(), 0.0)
+    unit = (self.combo_unit.get() or "adet").strip()
+
+    if not name:
+        messagebox.showwarning("Eksik bilgi", "İsim gerekli.")
+        return
+    ins_id = None
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO products (name, barcode, price, cost, stock, unit) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, barcode, price, cost, stock, unit),
+        )
+        conn.commit()
+        try:
+            ins_id = cur.lastrowid
+        except Exception:
+            ins_id = None
+    except sqlite3.IntegrityError:
+        messagebox.showerror("Hata", "Barkod benzersiz olmalıdır.")
+        return
+    except Exception as e:
+        messagebox.showerror("Hata", str(e))
+        return
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+    # Clear form and refresh list
+    try:
+        _pf_clear_product_form(self)
+    except Exception:
+        pass
+    self.refresh()
+
+    # Select and scroll to the newly added product
+    try:
+        if ins_id:
+            target = None
+            for iid in self.tree.get_children():
+                vals = self.tree.item(iid, "values")
+                if str(vals[0]) == str(ins_id):
+                    target = iid
+                    break
+            if target is None:
+                kids = self.tree.get_children()
+                target = kids[-1] if kids else None
+            if target:
+                # Only scroll into view; do not select to avoid refilling inputs
+                self.tree.see(target)
+    except Exception:
+        pass
+
+try:
+    ProductsFrame._clear_product_form = _pf_clear_product_form  # type: ignore[attr-defined]
+    ProductsFrame.add_product = _pf_add_product  # type: ignore[attr-defined]
+except Exception:
+    pass
+

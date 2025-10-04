@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from ui import make_back_arrow, apply_theme, rounded_outline, smart_tinted_bg, create_card, refresh_card_tints, ensure_card_control_backgrounds, ensure_ttk_contrast_styles, ensure_ttk_label_contrast
@@ -84,15 +84,26 @@ class SettingsFrame(tk.Frame):
         # Tabs container
         nb = ttk.Notebook(self)
         nb.pack(fill='both', expand=True)
+        self.nb = nb
 
         tab_name = tk.Frame(nb)
         tab_style = tk.Frame(nb)
         tab_db = tk.Frame(nb)
+        self.tab_db = tab_db
         nb.add(tab_name, text='Okul Adı')
         nb.add(tab_style, text='Yazı Boyutu ve Tema')
         nb.add(tab_db, text='Veri Tabanı')
 
-        # === School Name Card (Tab 1) ===
+        # PERM HOOK
+        try:
+            perms = getattr(self.controller, 'user_permissions', None)
+            if (perms is not None) and ('db' not in perms):
+                try:
+                    nb.forget(tab_db)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         def _autosize_card(card: tk.Frame, inner: tk.Frame, min_w: int = 560, pad: int = 12, min_h=None) -> None:
             try:
                 inner.update_idletasks()
@@ -228,7 +239,32 @@ class SettingsFrame(tk.Frame):
 
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Ayarlar")
+        try:
+            self._apply_db_tab_permission()
+        except Exception:
+            pass
         self._load()
+
+    def _apply_db_tab_permission(self) -> None:
+        nb = getattr(self, 'nb', None)
+        tab = getattr(self, 'tab_db', None)
+        if not nb or not tab:
+            return
+        try:
+            perms = getattr(self.controller, 'user_permissions', None)
+        except Exception:
+            perms = None
+        # Admin (perms None) => show; others require 'db' key
+        allow = (perms is None) or ('db' in perms)
+        try:
+            present = str(tab) in set(nb.tabs())
+        except Exception:
+            present = True
+        if not allow and present:
+            try:
+                nb.forget(tab)
+            except Exception:
+                pass
 
     def on_theme_changed(self) -> None:
         """Refresh tinted card backgrounds and local container bg when theme changes.
@@ -671,3 +707,174 @@ class SettingsFrame(tk.Frame):
                 self._suspend_theme_toggle = False
             except Exception:
                 pass
+
+# --- Runtime patch: add selective data delete dialog and override reset action ---
+def _settings_show_clear_data_dialog(self):
+    dlg = tk.Toplevel(self)
+    dlg.title("Verileri Temizle")
+    dlg.transient(self)
+    dlg.grab_set()
+    try:
+        dlg.resizable(False, False)
+    except Exception:
+        pass
+
+    container = tk.Frame(dlg, padx=14, pady=12)
+    container.pack(fill='both', expand=True)
+    tk.Label(container, text="Hangi verileri silmek istersiniz?", font='TkHeadingFont').pack(anchor='w', pady=(0,8))
+
+    self.var_del_users = tk.BooleanVar(value=False)
+    self.var_del_products = tk.BooleanVar(value=False)
+    self.var_del_sales = tk.BooleanVar(value=False)
+    self.var_del_ledger = tk.BooleanVar(value=False)
+    self.var_del_cash = tk.BooleanVar(value=False)
+    self.var_del_bank = tk.BooleanVar(value=False)
+
+    tk.Checkbutton(container, text="Kullanicilar (admin haric)", variable=self.var_del_users).pack(anchor='w')
+    tk.Checkbutton(container, text="Urunler", variable=self.var_del_products).pack(anchor='w')
+    tk.Checkbutton(container, text="Satislar (kalemlerle birlikte)", variable=self.var_del_sales).pack(anchor='w')
+    tk.Checkbutton(container, text="Gelir/Gider", variable=self.var_del_ledger).pack(anchor='w')
+    tk.Checkbutton(container, text="Kasa Hareketleri", variable=self.var_del_cash).pack(anchor='w')
+    tk.Checkbutton(container, text="Banka Hareketleri", variable=self.var_del_bank).pack(anchor='w')
+
+    hint = (
+        "Notlar:\n"
+        "- Satislar silinirse, satis kalemleri de silinir.\n"
+        "- Urunleri silmek mevcut satis raporlarini etkileyebilir."
+    )
+    tk.Label(container, text=hint, justify='left', fg='#555').pack(anchor='w', pady=(8,6))
+
+    btns = tk.Frame(container)
+    btns.pack(fill='x', pady=(6,0))
+
+    def _confirm():
+        u = bool(self.var_del_users.get())
+        p = bool(self.var_del_products.get())
+        s = bool(self.var_del_sales.get())
+        l = bool(self.var_del_ledger.get())
+        c = bool(self.var_del_cash.get())
+        b = bool(self.var_del_bank.get())
+        if not any([u, p, s, l, c, b]):
+            messagebox.showwarning("Verileri Temizle", "Lutfen en az bir secenek isaretleyin.")
+            return
+        try:
+            _settings_clear_selected_data(self, users=u, products=p, sales=s, ledger=l, cashbook=c, bankbook=b)
+        except Exception as e:
+            messagebox.showerror("Silme Hatasi", str(e))
+            return
+        try:
+            dlg.destroy()
+        except Exception:
+            pass
+
+    ttk.Button(btns, text="Sil", command=_confirm, style='Solid.TButton').pack(side='right', padx=(6,0))
+    ttk.Button(btns, text="Iptal", command=lambda: dlg.destroy()).pack(side='right')
+
+
+def _settings_clear_selected_data(self, *, users: bool, products: bool, sales: bool, ledger: bool, cashbook: bool, bankbook: bool) -> None:
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    summary = []
+    try:
+        # Single transaction for consistency; relax FK to avoid blockage
+        try:
+            cur.execute("PRAGMA foreign_keys=OFF")
+        except Exception:
+            pass
+        cur.execute("BEGIN IMMEDIATE")
+
+        # Users (keep admin)
+        if users:
+            # user_permissions is optional; ignore if missing
+            if _table_exists(cur, 'user_permissions'):
+                cur.execute("DELETE FROM user_permissions WHERE LOWER(username) <> 'admin'")
+            cur.execute("DELETE FROM users WHERE LOWER(username) <> 'admin'")
+            summary.append("Kullanicilar (admin haric)")
+
+        # Sales and items (and returns if present)
+        if sales:
+            # Delete children first, then parents
+            if _table_exists(cur, 'sale_items'):
+                cur.execute("DELETE FROM sale_items")
+            if _table_exists(cur, 'returns'):
+                cur.execute("DELETE FROM returns")
+            if _table_exists(cur, 'sales'):
+                cur.execute("DELETE FROM sales")
+            summary.append("Satislar")
+
+        # Products
+        if products:
+            if _table_exists(cur, 'products'):
+                cur.execute("DELETE FROM products")
+            summary.append("Urunler")
+
+        # Ledger / Cashbook / Bankbook
+        if ledger:
+            if _table_exists(cur, 'ledger'):
+                cur.execute("DELETE FROM ledger")
+            summary.append("Gelir/Gider")
+        if cashbook:
+            if _table_exists(cur, 'cashbook'):
+                cur.execute("DELETE FROM cashbook")
+            summary.append("Kasa Hareketleri")
+        if bankbook:
+            if _table_exists(cur, 'bankbook'):
+                cur.execute("DELETE FROM bankbook")
+            summary.append("Banka Hareketleri")
+
+        conn.commit()
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        messagebox.showerror("Silme Hatasi", str(e))
+        return
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    if summary:
+        messagebox.showinfo("Verileri Temizle", "Silinen: " + ", ".join(summary))
+        try:
+            _refresh_related_views(self)
+        except Exception:
+            pass
+
+def _table_exists(cur, name: str) -> bool:
+    try:
+        cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
+        return cur.fetchone() is not None
+    except Exception:
+        return False
+
+def _refresh_related_views(self) -> None:
+    ctrl = getattr(self, 'controller', None)
+    if ctrl is None:
+        return
+    try:
+        frames = dict(getattr(ctrl, 'frames', {}))
+    except Exception:
+        frames = {}
+    for fr in frames.values():
+        try:
+            cname = type(fr).__name__
+        except Exception:
+            continue
+        # Refresh reports/products/ledger if loaded
+        if cname in ("ReportsFrame", "ProductsFrame", "LedgerFrame"):
+            try:
+                if hasattr(fr, 'refresh') and callable(getattr(fr, 'refresh')):
+                    fr.refresh()
+            except Exception:
+                pass
+        # SalesFrame is volatile and rebuilt on show; no action needed here
+
+# Bind as methods and override reset action
+try:
+    SettingsFrame.show_clear_data_dialog = _settings_show_clear_data_dialog  # type: ignore[attr-defined]
+    SettingsFrame._clear_selected_data = _settings_clear_selected_data       # type: ignore[attr-defined]
+    SettingsFrame.reset_db = _settings_show_clear_data_dialog                # type: ignore[attr-defined]
+except Exception:
+    pass
