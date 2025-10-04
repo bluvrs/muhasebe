@@ -1,0 +1,44 @@
+    try:
+def _norm_text(s: str) -> str:
+
+    SettingsFrame = None  # type: ignore[assignment]
+except Exception:
+    from settings import SettingsFrame
+try:
+    InvestorsFrame = None  # type: ignore[assignment]
+except Exception:
+    from investors import InvestorsFrame
+try:
+    ReturnFrame = None  # type: ignore[assignment]
+    SalesFrame = None  # type: ignore[assignment]
+except Exception:
+    from sales import SalesFrame, ReturnFrame
+try:
+    LedgerFrame = None  # type: ignore[assignment]
+except Exception:
+    from ledger import LedgerFrame
+try:
+    ReportsFrame = None  # type: ignore[assignment]
+except Exception:
+    from reports import ReportsFrame
+try:
+    ProductsFrame = None  # type: ignore[assignment]
+except Exception:
+    from products import ProductsFrame
+try:
+from typing import Tuple
+import sqlite3 as _sqlite3
+from ui import apply_theme, tinted_bg, smart_tinted_bg, rounded_outline, apply_entry_margins, apply_button_margins, _icon_for_action, fix_mojibake_text, create_card, refresh_card_tints, ensure_card_control_backgrounds, CARD_BG_LIGHT, CARD_BG_DARK, ThemeManager
+from members import MembersFrame
+import unicodedata
+from typing import Dict, List, Optional, Type, Callable
+import tkinter.font as tkfont
+from tkinter import messagebox, ttk
+import tkinter as tk
+import time
+from datetime import datetime
+import sys
+import os
+import sqlite3
+
+

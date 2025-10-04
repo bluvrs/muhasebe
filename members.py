@@ -79,7 +79,7 @@ class MembersFrame(tk.Frame):
             ('investors', 'Yatırımcılar'),
             ('reports', 'Raporlar'),
             ('settings', 'Ayarlar'),
-            ('db', 'Veri Tabani islemleri'),
+            ('db', 'Veri Tabani'),
         ]
         # Build checkbuttons; we'll position them responsively in _relayout_perm_checks
         for k, label in keys:

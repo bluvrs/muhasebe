@@ -332,6 +332,7 @@ class App(tk.Tk):
         # aggressively restoring keyboard focus after we enable borderless.
         # (We avoid disabling borderless because the app relies on the
         # custom chrome.)
+        # Use custom borderless title bar by default
         self.use_borderless = True
         # Set window icon for packaged exe as well as dev run
         try:
@@ -382,21 +383,7 @@ class App(tk.Tk):
         self._maximize_startup()
         # Defer enabling borderless chrome until after theme and first frame
         # are initialized to avoid early focus issues on some platforms.
-        # Top menu bar with Help > About
-        try:
-            menubar = tk.Menu(self)
-            helpm = tk.Menu(menubar, tearoff=False)
-            helpm.add_command(label='Hakkında…', command=self.show_about)
-            menubar.add_cascade(label='Yardım', menu=helpm)
-            self.config(menu=menubar)
-            self._menubar = menubar  # type: ignore[attr-defined]
-            # F1 shows About
-            try:
-                self.bind_all('<F1>', lambda _e: self.show_about())
-            except Exception:
-                pass
-        except Exception:
-            pass
+        # System menubar disabled to remove Help/About entry
         # Apply font scaling only (no tk scaling), then theme
         try:
             scale, theme, base_pt = self._load_ui_settings()
@@ -448,7 +435,8 @@ class App(tk.Tk):
         # Disable automatic margin walkers by default to avoid layout drift
         # on first entry after theme/font changes. Screens manage their own
         # spacing explicitly.
-        self.auto_margins_enabled: bool = False
+        # Enable automatic margins for inputs and buttons across screens
+        self.auto_margins_enabled: bool = True
         # Track currently shown frame to allow safe re-render after
         # base font size changes.
         self.current_frame_class: Optional[Type[tk.Frame]] = None
@@ -479,31 +467,14 @@ class App(tk.Tk):
         self._wrap_messagebox_mojibake_fix()
         self.show_frame(LoginFrame)
         # Now that the initial UI is up with the correct theme and focus,
-        # we could enable borderless chrome if explicitly requested.
+        # enable borderless chrome if requested and set up taskbar anchor (Windows).
         if getattr(self, 'use_borderless', False):
             try:
+                self._create_taskbar_anchor()
+            except Exception:
+                pass
+            try:
                 self._enable_borderless_chrome()
-                # Restyle titlebar after enabling, and restore focus again
-                self._style_titlebar()
-                # Direct focus explicitly to login username if present
-                try:
-                    fr = self.frames.get(LoginFrame)
-                    if fr is not None and hasattr(fr, 'entry_user'):
-                        try:
-                            # Force focus to the toplevel first, then entry
-                            self.focus_force()
-                        except Exception:
-                            pass
-                        fr.entry_user.focus_force()
-                    else:
-                        self.after(50, self._schedule_focus_restore)
-                except Exception:
-                    self.after(50, self._schedule_focus_restore)
-                # Start a short-lived focus guard to keep inputs typeable
-                try:
-                    self._start_focus_guard(1500)
-                except Exception:
-                    pass
             except Exception:
                 pass
 
@@ -1140,7 +1111,7 @@ class App(tk.Tk):
                 try:
                     if self.auto_margins_enabled and frame.__class__.__name__ != 'LoginFrame':
                         apply_entry_margins(frame, pady=8)
-                        apply_button_margins(frame, padx=12, pady=12)
+                        apply_button_margins(frame, padx=2, pady=2)
                 except Exception:
                     pass
                 # Allow frames to customize post-show reflow
@@ -1189,8 +1160,23 @@ class App(tk.Tk):
         except Exception:
             return
 
-        # Title bar container (theme-aware colors applied below)
+        try:
+            # Force taskbar registration on Windows even when borderless
+            self._force_taskbar_register()
+        except Exception:
+            pass
         titlebar = tk.Frame(self, highlightthickness=0)
+        # Keep title bar dimensions and font constant (not scaled)
+        try:
+            if not hasattr(self, '_titlebar_font'):
+                base_family = tkfont.nametofont('TkDefaultFont').actual('family')
+                # Slightly larger fixed font for title bar
+                self._titlebar_font = tkfont.Font(family=base_family, size=24, weight='bold')
+            # Taller fixed height to prevent jumping on content changes
+            titlebar.configure(height=56)
+            titlebar.pack_propagate(False)
+        except Exception:
+            pass
         try:
             # Ensure it appears at the very top, above the main container
             titlebar.pack(fill='x', side='top', before=getattr(self, 'container', None))
@@ -1202,7 +1188,11 @@ class App(tk.Tk):
         gap_x = 12
 
         # Simple text menu at the far left
-        menu_btn = tk.Label(titlebar, text='☰', cursor='hand2')
+        menu_btn = tk.Label(titlebar, text='☰')
+        try:
+            menu_btn.configure(font=getattr(self, '_titlebar_font', None))
+        except Exception:
+            pass
         menu_btn.pack(side='left', padx=(pad_x, 8), pady=8)
         try:
             menu_btn.configure(takefocus=0)
@@ -1217,7 +1207,8 @@ class App(tk.Tk):
                 except Exception:
                     pass
                 # Visual pressed feedback handled by press/release handlers
-                self._title_popup_menu.tk_popup(event.x_root, event.y_root)  # type: ignore[attr-defined]
+                
+                self._title_popup_menu.tk_popup(event.x_root, event.y_root + 30)  # type: ignore[attr-defined]
             finally:
                 try:
                     self._title_popup_menu.grab_release()  # type: ignore[attr-defined]
@@ -1308,14 +1299,21 @@ class App(tk.Tk):
 
         # Title text (label-like; blends with bar)
         title = tk.Label(titlebar, text=APP_NAME)
+        try:
+            title.configure(font=getattr(self, '_titlebar_font', None))
+        except Exception:
+            pass
         title.pack(side='left', padx=(8, pad_x), pady=8)
-
-        # Button row (labels behaving like buttons)
+# Button row (labels behaving like buttons)
         btn_row = tk.Frame(titlebar, bd=0, highlightthickness=0)
         btn_row.pack(side='right', padx=pad_x)
 
         def _mk_text_btn(parent, text, cmd):
             lbl = tk.Label(parent, text=text, cursor='hand2')
+            try:
+                lbl.configure(font=getattr(self, '_titlebar_font', None))
+            except Exception:
+                pass
             # Use widget-local normal/hover fg to avoid stale globals
             lbl._normal_fg = getattr(self, '_title_fg', 'black')  # type: ignore[attr-defined]
             lbl._hover_fg = getattr(self, '_title_fg_hover', '#333333')  # type: ignore[attr-defined]
@@ -1360,9 +1358,9 @@ class App(tk.Tk):
             return lbl
 
         # Close at far right; minimize to its left
-        b_close = _mk_text_btn(btn_row, '✕', self.destroy)
+        b_close = _mk_text_btn(btn_row, '×', self.destroy)
         b_close.pack(side='right', padx=(0, 0), pady=8)
-        b_min = _mk_text_btn(btn_row, '–', self._safe_iconify)
+        b_min = _mk_text_btn(btn_row, '-', self._safe_iconify)
         # Add explicit space between minimize and close
         b_min.pack(side='right', padx=(0, gap_x), pady=8)
         # Avoid stealing keyboard focus from content widgets
@@ -1444,6 +1442,12 @@ class App(tk.Tk):
             self._style_titlebar()
         except Exception:
             pass
+        # Ensure Windows taskbar registers this window even when borderless
+        try:
+            self.after(300, self._force_taskbar_register)
+        except Exception:
+            pass
+
         # Start a short-lived guard to keep focus stable after enabling
         try:
             self._start_focus_guard(1500)
@@ -1469,6 +1473,18 @@ class App(tk.Tk):
             self.overrideredirect(False)
         except Exception:
             pass
+        # On Windows, ensure the window shows in the taskbar when minimized
+        try:
+            self._ensure_taskbar_icon()
+        except Exception:
+            pass
+        # Minimize the taskbar anchor as well; restoring it will trigger main restore
+        try:
+            anchor = getattr(self, '_taskbar_anchor', None)
+            if anchor is not None:
+                anchor.iconify()
+        except Exception:
+            pass
         try:
             self.iconify()
         except Exception:
@@ -1477,6 +1493,63 @@ class App(tk.Tk):
                 self._reapply_borderless()
             except Exception:
                 pass
+
+    def _create_taskbar_anchor(self) -> None:
+        """Create a tiny, transparent normal window to provide a taskbar icon
+        on Windows when running the main window in borderless mode.
+        Safe no-op on other platforms."""
+        try:
+            if sys.platform != 'win32':
+                return
+            if hasattr(self, '_taskbar_anchor') and getattr(self, '_taskbar_anchor'):
+                return
+            anc = tk.Toplevel(self)
+            anc.overrideredirect(False)
+            try:
+                anc.wm_attributes('-toolwindow', False)
+            except Exception:
+                pass
+            try:
+                anc.wm_attributes('-alpha', 0.0)
+            except Exception:
+                pass
+            try:
+                anc.iconbitmap(default=getattr(self, '_app_ico_path', resource_path('app.ico')))
+            except Exception:
+                pass
+            try:
+                anc.title(self.title())
+            except Exception:
+                pass
+            anc.geometry('1x1+0+0')
+            anc.deiconify()
+            anc.lower()
+            # When the anchor is restored from the taskbar, restore the main window
+            def _restore_main(_e=None):
+                try:
+                    self.deiconify()
+                except Exception:
+                    pass
+                try:
+                    self._reapply_borderless()
+                except Exception:
+                    pass
+                try:
+                    self.lift()
+                except Exception:
+                    pass
+                try:
+                    anc.lower()
+                except Exception:
+                    pass
+            try:
+                anc.bind('<Map>', _restore_main, add='+')
+                anc.bind('<FocusIn>', _restore_main, add='+')
+            except Exception:
+                pass
+            self._taskbar_anchor = anc  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _reapply_borderless(self) -> None:
         if not getattr(self, 'use_borderless', False):
@@ -1491,6 +1564,75 @@ class App(tk.Tk):
             w = self.winfo_screenwidth()
             h = self.winfo_screenheight()
             self.geometry(f"{w}x{h}+0+0")
+        except Exception:
+            pass
+
+    def _reapply_borderless(self) -> None:
+        """Reapply override-redirect and geometry, and reassert taskbar flags."""
+        if not getattr(self, 'use_borderless', False):
+            return
+        try:
+            self.overrideredirect(True)
+        except Exception:
+            pass
+        # Keep maximized/fullscreen-like geometry
+        try:
+            self.update_idletasks()
+            w = self.winfo_screenwidth()
+            h = self.winfo_screenheight()
+            self.geometry(f"{w}x{h}+0+0")
+        except Exception:
+            pass
+        # Ensure Windows taskbar shows this window
+        try:
+            self.wm_attributes('-toolwindow', False)
+        except Exception:
+            pass
+        try:
+            self._ensure_taskbar_icon()
+        except Exception:
+            pass
+
+    def _force_taskbar_register(self) -> None:
+        """Force Explorer to register the window in the taskbar on Windows."""
+        try:
+            if sys.platform != 'win32':
+                return
+            # Briefly withdraw/deiconify to force taskbar registration
+            self.withdraw()
+            self.after(50, lambda: (self.deiconify(), self._ensure_taskbar_icon()))
+        except Exception:
+            pass
+    def _ensure_taskbar_icon(self) -> None:
+        """On Windows, make sure the window uses APPWINDOW style so it appears
+        on the taskbar when minimized. Safe no-op on other platforms."""
+        try:
+            if sys.platform != 'win32':
+                return
+            import ctypes
+            from ctypes import wintypes
+            GWL_EXSTYLE = -20
+            WS_EX_TOOLWINDOW = 0x00000080
+            WS_EX_APPWINDOW = 0x00040000
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOZORDER = 0x0004
+            SWP_FRAMECHANGED = 0x0020
+            hwnd = self.winfo_id()
+            user32 = ctypes.windll.user32
+            get_long = user32.GetWindowLongW
+            set_long = user32.SetWindowLongW
+            set_pos = user32.SetWindowPos
+            get_long.restype = ctypes.c_long
+            get_long.argtypes = [wintypes.HWND, ctypes.c_int]
+            set_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+            set_pos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+            ex = get_long(hwnd, GWL_EXSTYLE)
+            ex &= ~WS_EX_TOOLWINDOW
+            ex |= WS_EX_APPWINDOW
+            set_long(hwnd, GWL_EXSTYLE, ex)
+            # Notify the window manager that styles changed
+            set_pos(hwnd, None, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED)
         except Exception:
             pass
         # Re-apply titlebar colors for current theme after remap
@@ -1516,14 +1658,29 @@ class App(tk.Tk):
         except Exception:
             pass
         m = tk.Menu(self, tearoff=False)
+        try:
+            # Force light look for this popup regardless of app theme
+            m.configure(bg='white', fg='black', activebackground='#f0f0f0', activeforeground='black', disabledforeground='#9a9a9a')
+            m.configure(borderwidth=0, relief='flat', activeborderwidth=0, highlightthickness=0)
+        except Exception:
+            pass
         m.add_command(label='Hakkında…', command=self.show_about)
         m.add_separator()
-        m.add_command(label='Simge Durumuna Küçült', command=self.iconify)
+        m.add_command(label='Ayarlar', command=self._open_settings_from_title_menu)
         m.add_command(label='Çıkış', command=self.destroy)
         self._title_popup_menu = m  # type: ignore[attr-defined]
         # Bind close/unmap to restore focus strongly
         try:
             self._wire_menu_close_focus(m)
+        except Exception:
+            pass
+
+    def _open_settings_from_title_menu(self) -> None:
+        try:
+            if SettingsFrame is not None:
+                self.show_frame(SettingsFrame)  # type: ignore[arg-type]
+            else:
+                self.show_placeholder('Ayarlar')
         except Exception:
             pass
 
@@ -1770,7 +1927,7 @@ class LoginFrame(tk.Frame):
         # Plain rectangular login card (no rounded canvas)
         tint = smart_tinted_bg(self)
         self.card_container = tk.Frame(self, bg=tint, bd=1, relief='solid')
-        self.card_container.place(relx=0.5, rely=0.5, anchor='center', width=560, height=420)
+        self.card_container.place(relx=0.5, rely=0.5, anchor='center', width=560, height=480)
 
         inner = tk.Frame(self.card_container, bg=tint)
         inner.pack(fill='both', expand=True, padx=20, pady=16)
@@ -1802,7 +1959,7 @@ class LoginFrame(tk.Frame):
                     inner.update_idletasks()
                     req_h = inner.winfo_reqheight()
                     # Add slack for borders/padding
-                    target_h = max(420, req_h + 28)
+                    target_h = max(480, req_h + 28)
                     self.card_container.configure(height=target_h)
                 except Exception:
                     pass
@@ -1914,6 +2071,11 @@ class MenuTile(tk.Label):
             *args,
             **kwargs
         )
+        # Subtle border: thin highlight line instead of thick 3D relief
+        try:
+            self.configure(bd=0, relief='flat', highlightthickness=1, highlightbackground='#c8cdd4', highlightcolor='#c8cdd4')
+        except Exception:
+            pass
         # Mark this tile to opt out from global recolor passes
         try:
             self._preserve_theme = True
@@ -1974,6 +2136,12 @@ class MenuTile(tk.Label):
             fg=self._default_fg,
             font=("Arial", int(self._base_size * scale), "bold"),
         )
+        # Update thin border color per theme for better contrast
+        try:
+            line = '#4a4f55' if theme == 'dark' else '#c8cdd4'
+            self.configure(highlightbackground=line, highlightcolor=line)
+        except Exception:
+            pass
 
 
 class RoleFrame(tk.Frame):
@@ -1992,7 +2160,7 @@ class RoleFrame(tk.Frame):
         tk.Label(self, text=title, font='TkHeadingFont').pack(pady=(20, 6))
         # Centered user card with rounded outline
         user_holder = tk.Frame(self)
-        user_holder.pack(pady=(0, 10), anchor='n')
+        user_holder.pack(pady=(0, 10), anchor='center')
         padding_val = 10
         card, inner = create_card(user_holder, radius=12, padding=padding_val, border='#888')
         card.pack(anchor='center')
@@ -2008,7 +2176,7 @@ class RoleFrame(tk.Frame):
                     h = inner.winfo_reqheight() + padding_val * 2
                     if h < 72:
                         h = 72
-                    card.configure(width=520, height=h)
+                    card.configure(width=620, height=h)
                     card.pack_propagate(False)
                 except Exception:
                     pass
@@ -2020,10 +2188,10 @@ class RoleFrame(tk.Frame):
                     header_row.update_idletasks()
                     btn_h = logout_btn.winfo_reqheight()
                     lbl_h = self.user_label.winfo_reqheight()
-                    row_h = max(btn_h, lbl_h) + 12
+                    row_h = max(btn_h, lbl_h) + 24
                     header_row.grid_rowconfigure(0, minsize=row_h)
                     inner.update_idletasks()
-                    h = inner.winfo_reqheight() + padding_val * 2 + 14
+                    h = inner.winfo_reqheight() + padding_val * 2 
                     if h < 92:
                         h = 80
                     card.configure(height=h)
@@ -2041,10 +2209,10 @@ class RoleFrame(tk.Frame):
         header_row.grid_columnconfigure(0, weight=1)
         header_row.grid_rowconfigure(0, weight=1)
         self.user_label = tk.Label(header_row, text="", bg=inner.cget('bg'))
-        self.user_label.grid(row=0, column=0, padx=12, pady=6, sticky='nsw')
-        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Logout.TButton', padding=(16,10))
+        self.user_label.grid(row=0, column=0, padx=12, pady=20, sticky='nsw')
+        logout_btn = ttk.Button(header_row, text="Çıkış yap", command=self.controller.logout, style='Logout.TButton', padding=(16,2))
         # Use default ttk font for logout; MenuButtonFont is only for menu tiles
-        logout_btn.grid(row=0, column=1, padx=12, pady=6, sticky='nse')
+        logout_btn.grid(row=0, column=1, padx=12, pady=20, sticky='nse')
         # Keep reference to reapply padding after theme changes
         self.logout_btn = logout_btn
 
@@ -2165,7 +2333,7 @@ class RoleFrame(tk.Frame):
         # Ensure logout button keeps its vertical padding after theme restyle
         try:
             if hasattr(self, 'logout_btn'):
-                self.logout_btn.configure(style='Logout.TButton', padding=(16,10))
+                self.logout_btn.configure(style='Logout.TButton', padding=(16,2))
         except Exception:
             pass
 
@@ -2350,10 +2518,10 @@ class AdminFrame(RoleFrame):
 
 class CashierFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        description = "Barkod okutun ve işlemleri tamamlayın."
+       
         actions = get_main_actions()
         handlers = build_main_handlers(controller)
-        super().__init__(parent, controller, "Kasiyer Ekranı", actions, handlers, description)
+        super().__init__(parent, controller, "Kasiyer Ekranı", actions, handlers)
 
 
 class AccountingFrame(RoleFrame):
@@ -2365,10 +2533,10 @@ class AccountingFrame(RoleFrame):
 
 class MemberFrame(RoleFrame):
     def __init__(self, parent: tk.Misc, controller: App) -> None:
-        description = "Kârdan düşen payınızı ve geçmiş işlemleri inceleyin."
+       
         actions = get_main_actions()
         handlers = build_main_handlers(controller)
-        super().__init__(parent, controller, "Üye Paneli", actions, handlers, description)
+        super().__init__(parent, controller, "Üye Paneli", actions, handlers)
 
 
 class ManagerFrame(RoleFrame):

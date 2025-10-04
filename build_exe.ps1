@@ -221,7 +221,14 @@ function New-Exe {
     if (Test-Path 'Roboto') {
         $commonArgs += @('--add-data','Roboto;Roboto')
     }
-    # Include VERSION.txt so app can read runtime version
+        # Include app icon and png for runtime usage
+    if (Test-Path 'app.ico') {
+        $commonArgs += @('--add-data','app.ico;.')
+    }
+    if (Test-Path 'app.png') {
+        $commonArgs += @('--add-data','app.png;.')
+    }
+# Include VERSION.txt so app can read runtime version
     if (Test-Path 'VERSION.txt') {
         $commonArgs += @('--add-data','VERSION.txt;VERSION.txt')
     }
@@ -309,4 +316,10 @@ try {
     Write-Host "[x] Build failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
+
+
+
+
+
+
 

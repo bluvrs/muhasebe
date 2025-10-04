@@ -13,7 +13,7 @@ DB_NAME = "coop.db"
 
 
 class IOSSwitch(tk.Frame):
-    """Minimal iOS‑style switch built on a Canvas.
+    """Minimal iOSâ€‘style switch built on a Canvas.
     variable: tk.BooleanVar; command: callable; bg: parent bg.
     """
     def __init__(self, parent, variable: tk.BooleanVar, command=None, bg: str | None = None):
@@ -79,20 +79,34 @@ class SettingsFrame(tk.Frame):
         self.header_frame = header
         self.back_arrow = make_back_arrow(header, self.go_back)
         self.back_arrow.pack(side='left', padx=(10,6), pady=(10,6))
-        tk.Label(header, text="Ayarlar", font='TkHeadingFont').pack(side='left', pady=(16,6))
+        self.header_label = tk.Label(header, text=('Ayarlar' if not getattr(self.controller, 'active_user', None) else 'Ayarlar'), font='TkHeadingFont'); self.header_label.pack(side='left', pady=(16,6))
 
         # Tabs container
         nb = ttk.Notebook(self)
         nb.pack(fill='both', expand=True)
+        
         self.nb = nb
 
+        # Create tabs and store references
         tab_name = tk.Frame(nb)
+        self.tab_name = tab_name
         tab_style = tk.Frame(nb)
+        self.tab_style = tab_style
         tab_db = tk.Frame(nb)
         self.tab_db = tab_db
-        nb.add(tab_name, text='Okul Adı')
-        nb.add(tab_style, text='Yazı Boyutu ve Tema')
-        nb.add(tab_db, text='Veri Tabanı')
+        # Always show style tab; add others only if logged in
+        if getattr(self.controller, 'active_user', None):
+            nb.add(tab_style, text='Görünüm')
+            nb.add(tab_name, text='Okul Adı')
+            nb.add(tab_db, text='Veri Tabanı')
+        else:
+            nb.add(tab_style, text='Görünüm')
+
+        # Ensure tabs reflect login state whenever this screen is shown
+        try:
+            self._update_tabs_for_login_state()
+        except Exception:
+            pass
 
         # PERM HOOK
         try:
@@ -117,7 +131,7 @@ class SettingsFrame(tk.Frame):
                     pass
                 card.configure(width=req_w, height=height)
             except Exception:
-                # Ölçüm başarısız olursa güvenli bir yükseklik kullan
+                # Ã–lÃ§üm baÅŸarısız olursa güvenli bir yükseklik kullan
                 card.configure(width=min_w, height=200)
         name_holder = tk.Frame(tab_name)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
@@ -130,10 +144,10 @@ class SettingsFrame(tk.Frame):
         row_name = tk.Frame(name_inner, bg=tint_name)
         row_name.pack(pady=(6, 0), anchor='center')
         self.entry_school = ttk.Entry(row_name, width=40)
-        # Metin kutusu ile buton arasÄ±nÄ± aÃ§mak iÃ§in boÅŸluklarÄ± artÄ±r
+        # Metin kutusu ile buton arasÃ„Â±nÃ„Â± aÃƒÂ§mak iÃƒÂ§in boÃ…Å¸luklarÃ„Â± artÃ„Â±r
         self.entry_school.pack(side='left', padx=(0, 12))
         ttk.Button(row_name, text="Kaydet", command=self.save, style='Solid.TButton').pack(side='right', padx=(12, 0))
-        # Kart yÃ¼ksekliÄŸini iÃ§eriÄŸe gÃ¶re ayarla (Kaydet butonu gÃ¶rÃ¼nÃ¼r kalsÄ±n)
+        # Kart yÃƒÂ¼ksekliÃ„Å¸ini iÃƒÂ§eriÃ„Å¸e gÃƒÂ¶re ayarla (Kaydet butonu gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼r kalsÃ„Â±n)
         _autosize_card(name_card, name_inner, min_w=560, pad=12, min_h=180)
         name_card.pack_propagate(False)
 
@@ -152,7 +166,7 @@ class SettingsFrame(tk.Frame):
         tk.Label(sw_row, text="Koyu Tema", bg=tint_theme).pack(side='left', padx=(0, 8))
         self.theme_switch = IOSSwitch(sw_row, variable=self.var_dark, command=self.on_theme_toggle, bg=tint_theme)
         self.theme_switch.pack(side='left')
-        # Tema değişimini anında uygula (yeniden başlatma gerekmez)
+        # Tema deÄŸiÅŸimini anında uygula (yeniden baÅŸlatma gerekmez)
         _autosize_card(theme_card, theme_inner, min_w=560, pad=12, min_h=180)
         theme_card.pack_propagate(False)
 
@@ -183,10 +197,10 @@ class SettingsFrame(tk.Frame):
             # surprising moment when switching arrow direction, which looks like
             # a reversed first step. We'll instead commit changes on Enter/blur.
             from tkinter import ttk as _ttk
-            self.spin_base = _ttk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, increment=1)
+            self.spin_base = _ttk.Spinbox(row_base, from_=8, to=14, width=4, textvariable=self.var_base_pt, increment=1)
         except Exception:
             # Fallback to classic Spinbox
-            self.spin_base = tk.Spinbox(row_base, from_=8, to=32, width=4, textvariable=self.var_base_pt, increment=1)
+            self.spin_base = tk.Spinbox(row_base, from_=8, to=14, width=4, textvariable=self.var_base_pt, increment=1)
         self.spin_base.pack(side='left', padx=(6, 0))
         # Apply on Enter or when the control loses focus; also normalize value
         self.spin_base.bind('<Return>', lambda _e: self.on_base_pt_change())
@@ -227,7 +241,7 @@ class SettingsFrame(tk.Frame):
         ttk.Button(btn_row, text="Yedekle", command=self.backup_db, style='Solid.TButton').pack(side='left', padx=6)
         ttk.Button(btn_row, text="Sıfırla", command=self.reset_db, style='Solid.TButton').pack(side='left', padx=6)
         # Restart button (hidden until reset)
-        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden Başlat", command=self.restart_app, style='Solid.TButton')
+        self.btn_restart = ttk.Button(btn_row, text="Uygulamayı Yeniden BaÅŸlat", command=self.restart_app, style='Solid.TButton')
 
         _autosize_card(db_card, db_inner, min_w=560, pad=12, min_h=180)
         db_card.pack_propagate(False)
@@ -237,13 +251,77 @@ class SettingsFrame(tk.Frame):
         self._ensure_table()
         self._load()
 
+    def _update_tabs_for_login_state(self) -> None:
+        nb = getattr(self, 'nb', None)
+        if not nb:
+            return
+        active = bool(getattr(self.controller, 'active_user', None))
+        # Clear all tabs
+        try:
+            for t in list(nb.tabs()):
+                try:
+                    nb.forget(t)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Always add style tab with appropriate title
+        try:
+            nb.add(self.tab_style, text=('Görünüm'))
+        except Exception:
+            pass
+
+        if active:
+            try:
+                 perms = getattr(self.controller, 'user_permissions', None)
+                 allow_school = (perms is None) or ('settings' in perms)
+            except Exception:
+                allow_school = False
+            # Add name tab only if permitted
+            if allow_school:
+                try:
+                    nb.add(self.tab_name, text='Okul Adı')
+                except Exception:
+                    pass
+           
+            # Add DB tab only if permitted
+            allow_db = False
+            try:
+                perms = getattr(self.controller, 'user_permissions', None)
+                allow_db = (perms is None) or ('db' in perms)
+            except Exception:
+                allow_db = False
+            if allow_db:
+                try:
+                    nb.add(self.tab_db, text='Veri Tabani')
+                except Exception:
+                    pass
+        # Header title
+        try:
+            if hasattr(self, 'header_label') and self.header_label:
+                self.header_label.configure(text=('Ayarlar'))
+        except Exception:
+            pass
+
     def on_show(self, **kwargs) -> None:
-        self.controller.title("Kooperatif - Ayarlar")
+        try:
+            self.controller.title('Kooperatif - Ayarlar')
+        except Exception:
+            pass
+        try:
+            self._apply_settings_access()
+        except Exception:
+            pass
+        try:
+            self._update_tabs_for_login_state()
+        except Exception:
+            pass
         try:
             self._apply_db_tab_permission()
         except Exception:
             pass
         self._load()
+
 
     def _apply_db_tab_permission(self) -> None:
         nb = getattr(self, 'nb', None)
@@ -265,6 +343,27 @@ class SettingsFrame(tk.Frame):
                 nb.forget(tab)
             except Exception:
                 pass
+    def _apply_settings_access(self) -> None:
+        """If user lacks 'settings' permission, show only the appearance tab."""
+        nb = getattr(self, 'nb', None)
+        if not nb:
+            return
+        try:
+            perms = getattr(self.controller, 'user_permissions', None)
+        except Exception:
+            perms = None
+        allow_settings = (perms is None) or ('settings' in perms)
+        if allow_settings:
+            return
+        try:
+            for t in (getattr(self, 'tab_name', None), getattr(self, 'tab_db', None)):
+                if t and (str(t) in set(nb.tabs())):
+                    try:
+                        nb.forget(t)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
     def on_theme_changed(self) -> None:
         """Refresh tinted card backgrounds and local container bg when theme changes.
@@ -442,7 +541,7 @@ class SettingsFrame(tk.Frame):
         self.status_var.set("Okul adı kaydedildi.")
 
     def on_theme_toggle(self) -> None:
-        # Temayı kaydet ve anında uygula (yeniden başlatma yok)
+        # Temayı kaydet ve anında uygula (yeniden baÅŸlatma yok)
         theme_key = 'dark' if self.var_dark.get() else 'light'
         # Kaydet
         try:
@@ -457,7 +556,7 @@ class SettingsFrame(tk.Frame):
             conn.close()
         except Exception:
             pass
-        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme çağır
+        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme Ã§aÄŸır
         try:
             try:
                 scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
@@ -467,7 +566,7 @@ class SettingsFrame(tk.Frame):
                 base_pt = int(self.var_base_pt.get()) if hasattr(self, 'var_base_pt') else getattr(self.controller, 'saved_base_pt', 12)
             except Exception:
                 base_pt = getattr(self.controller, 'saved_base_pt', 12)
-            # Kaydı önce güncelle ki refresh_theme doğru temayı uygulasın
+            # Kaydı önce güncelle ki refresh_theme doÄŸru temayı uygulasın
             try:
                 self.controller.saved_theme = theme_key
                 self.controller.saved_scale = float(scale_val)
@@ -515,10 +614,10 @@ class SettingsFrame(tk.Frame):
             except Exception:
                 pass
             try:
-                messagebox.showinfo("Tema", "Tema değiştirildi. Temanız uygulamayı yeniden başlattığınızda tam olarak uygulanacaktır.")
+                messagebox.showinfo("Tema", "Tema deÄŸiÅŸtirildi. Temanız uygulamayı yeniden baÅŸlattıÄŸınızda tam olarak uygulanacaktır.")
             except Exception:
                 pass
-            self.status_var.set("Tema kaydedildi. Yeniden başlatınca tam uygulanır.")
+            self.status_var.set("Tema kaydedildi. Yeniden baÅŸlatınca tam uygulanır.")
         except Exception:
             pass
     def _init_theme_list(self) -> None:
@@ -566,7 +665,7 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         # Only update status message at the end
-        self.status_var.set(f"Ölçek uygulandı: {scale_val}x")
+        self.status_var.set(f"Ã–lÃ§ek uygulandı: {scale_val}x")
 
     def on_base_pt_change(self) -> None:
         # Persist and apply base font point size.
@@ -615,7 +714,7 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         # Avoid re-showing the screen to prevent refresh loops/blinking
-        self.status_var.set(f"Temel yazı: {new_base} pt, ölçek: {new_scale}x")
+        self.status_var.set(f"Temel yazı: {new_base} pt, ölÃ§ek: {new_scale}x")
 
     # --- DB Utils ---
     def backup_db(self) -> None:
@@ -632,10 +731,10 @@ class SettingsFrame(tk.Frame):
             shutil.copy2(DB_NAME, dst)
             messagebox.showinfo("Yedekleme", f"Yedek alındı:\n{dst}")
         except Exception as e:
-            messagebox.showerror("Yedekleme HatasÄ±", str(e))
+            messagebox.showerror("Yedekleme HatasÃ„Â±", str(e))
 
     def reset_db(self) -> None:
-        if not messagebox.askyesno("Sıfırlama", "Veri Tabanını Sıfırlamak istediğinize emin misiniz?\nMevcut dosya yedek kopyası alınacaktır."):
+        if not messagebox.askyesno("Sıfırlama", "Veri Tabanını Sıfırlamak istediÄŸinize emin misiniz?\nMevcut dosya yedek kopyası alınacaktır."):
             return
         try:
             # Backup first
@@ -662,10 +761,10 @@ class SettingsFrame(tk.Frame):
             except Exception:
                 pass
         except Exception as e:
-            messagebox.showerror("Sıfırlama HatasÄ±", str(e))
+            messagebox.showerror("Sıfırlama HatasÃ„Â±", str(e))
 
     def restart_app(self) -> None:
-        if not messagebox.askyesno("Yeniden Başlat", "Uygulama yeniden başlatılsın mı?"):
+        if not messagebox.askyesno("Yeniden BaÅŸlat", "Uygulama yeniden baÅŸlatılsın mı?"):
             return
         import subprocess, time
         try:
@@ -681,10 +780,10 @@ class SettingsFrame(tk.Frame):
                     try:
                         os.startfile(sys.argv[0])
                     except Exception as _e:
-                        messagebox.showerror("Yeniden BaÅŸlatma HatasÄ±", str(_e))
+                        messagebox.showerror("Yeniden BaÃ…Å¸latma HatasÃ„Â±", str(_e))
                         return
         except Exception as e:
-            messagebox.showerror("Yeniden BaÅŸlatma HatasÄ±", str(e))
+            messagebox.showerror("Yeniden BaÃ…Å¸latma HatasÃ„Â±", str(e))
             return
         try:
             self.controller.destroy()
@@ -907,3 +1006,9 @@ try:
     SettingsFrame.reset_db = _settings_show_clear_data_dialog                # type: ignore[attr-defined]
 except Exception:
     pass
+
+
+
+
+
+

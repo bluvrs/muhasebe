@@ -184,13 +184,18 @@ class ThemeManager:
             pass
 
 def fix_mojibake_text(s: Optional[str]) -> Optional[str]:
-    """Best‑effort fix for UTF‑8 text that was mis‑decoded as Latin‑1/Windows‑1252.
-    If conversion fails, returns the original string.
+    """Repair typical mojibake only when it is actually present.
+    Heuristic: attempt fix only if suspicious marker characters appear
+    (e.g., 'Ã', 'Â', '�') that commonly show up when UTF-8 is mis-decoded
+    as Latin-1/CP1252. Otherwise, return the string unchanged.
     """
     try:
-        if not isinstance(s, str):
+        if not isinstance(s, str) or not s:
             return s
-        # Try the common path: original UTF‑8 bytes were decoded as latin‑1
+        # Quick guard: skip if no mojibake markers
+        if not any(ch in s for ch in ("Ã", "Â", "�")):
+            return s
+        # Attempt latin-1 -> utf-8 repair
         return s.encode('latin-1').decode('utf-8')
     except Exception:
         return s
@@ -389,11 +394,11 @@ def _apply_dark_palette(style, root: tk.Tk) -> None:
     except Exception:
         pass
     style.configure('Logout.TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
-                    padding=(16, 10))
+                    padding=(16, 2))
     style.map('Logout.TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')])
     # Login button style: a bit larger for prominence, same palette
     style.configure('Login.TButton', background=light_btn_bg, foreground='#000000', relief='flat', borderwidth=0,
-                    padding=(24, 18))
+                    padding=(24, 2))
     style.map('Login.TButton', background=[('active', light_btn_bg_active)], foreground=[('active', '#000000')])
     # Ensure Solid.TButton follows the same palette (used by Login button)
     try:
@@ -554,9 +559,9 @@ def _apply_light_palette(style, root: tk.Tk) -> None:
     except Exception:
         style.configure('TButton', background=btn_bg, foreground=btn_fg, padding=(20, 16), relief='flat', borderwidth=0)
         style.map('TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
-        style.configure('Logout.TButton', background=btn_bg, foreground=btn_fg, padding=(16, 10), relief='flat', borderwidth=0)
+        style.configure('Logout.TButton', background=btn_bg, foreground=btn_fg, padding=(16, 2), relief='flat', borderwidth=0)
         style.map('Logout.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
-        style.configure('Login.TButton', background=btn_bg, foreground=btn_fg, padding=(24, 18), relief='flat', borderwidth=0)
+        style.configure('Login.TButton', background=btn_bg, foreground=btn_fg, padding=(24, 2), relief='flat', borderwidth=0)
         style.map('Login.TButton', background=[('pressed', btn_bg_active), ('active', btn_bg_active)], foreground=[('active', btn_fg)])
         # Menu buttons style (will get padding updated per-scale at runtime)
         style.layout('Menu.TButton', [
