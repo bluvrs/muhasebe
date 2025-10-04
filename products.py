@@ -90,7 +90,8 @@ class ProductsFrame(tk.Frame):
         # Buttons
         btns = tk.Frame(self)
         btns.pack(fill="x", padx=20, pady=(0, 10))
-        self.btn_add = ttk.Button(btns, text="Ekle", command=self.add_product)
+        # Open a separate window to add product
+        self.btn_add = ttk.Button(btns, text="Yeni Ürün", command=self.open_add_product_window)
         self.btn_add.pack(side="left")
         self.btn_update = ttk.Button(btns, text="Güncelle", command=self.update_product)
         self.btn_update.pack(side="left", padx=8)
@@ -99,6 +100,110 @@ class ProductsFrame(tk.Frame):
 
         self.refresh()
 
+    # --- Add Product via Dialog ---
+    def open_add_product_window(self) -> None:
+        """Open a centered modal window for adding a new product."""
+        top = tk.Toplevel(self)
+        top.title("Yeni Ürün Ekle")
+        try:
+            top.transient(self.winfo_toplevel())
+            top.grab_set()
+        except Exception:
+            pass
+
+        body = tk.Frame(top, padx=16, pady=12)
+        body.pack(fill='both', expand=True)
+
+        tk.Label(body, text="Barkod").grid(row=0, column=0, sticky='w')
+        e_barcode = tk.Entry(body)
+        e_barcode.grid(row=0, column=1, sticky='ew', padx=(8, 0))
+
+        tk.Label(body, text="İsim").grid(row=1, column=0, sticky='w', pady=(8,0))
+        e_name = tk.Entry(body)
+        e_name.grid(row=1, column=1, sticky='ew', padx=(8, 0), pady=(8,0))
+
+        tk.Label(body, text="Maliyet").grid(row=2, column=0, sticky='w', pady=(8,0))
+        e_cost = tk.Entry(body)
+        e_cost.grid(row=2, column=1, sticky='ew', padx=(8,0), pady=(8,0))
+
+        tk.Label(body, text="Fiyat").grid(row=3, column=0, sticky='w', pady=(8,0))
+        e_price = tk.Entry(body)
+        e_price.grid(row=3, column=1, sticky='ew', padx=(8,0), pady=(8,0))
+
+        tk.Label(body, text="Birim").grid(row=4, column=0, sticky='w', pady=(8,0))
+        cb_unit = ttk.Combobox(body, values=["adet", "kg", "lt", "paket"], state="readonly")
+        cb_unit.set("adet")
+        cb_unit.grid(row=4, column=1, sticky='w', padx=(8,0), pady=(8,0))
+
+        tk.Label(body, text="Stok").grid(row=5, column=0, sticky='w', pady=(8,0))
+        e_stock = tk.Entry(body)
+        e_stock.grid(row=5, column=1, sticky='ew', padx=(8,0), pady=(8,0))
+
+        body.columnconfigure(1, weight=1)
+
+        btns = tk.Frame(top, padx=16, pady=12)
+        btns.pack(fill='x')
+
+        def do_save() -> None:
+            name = e_name.get().strip()
+            if not name:
+                messagebox.showwarning("Eksik bilgi", "İsim gerekli.", parent=top)
+                try:
+                    e_name.focus_set()
+                except Exception:
+                    pass
+                return
+            barcode = (e_barcode.get().strip() or None)
+            price = self._parse_float((e_price.get() or '').strip(), 0.0)
+            cost = self._parse_float((e_cost.get() or '').strip(), 0.0)
+            stock = self._parse_float((e_stock.get() or '').strip(), 0.0)
+            unit = (cb_unit.get() or 'adet').strip()
+            try:
+                conn = sqlite3.connect(DB_NAME)
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO products (name, barcode, price, cost, stock, unit) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, barcode, price, cost, stock, unit),
+                )
+                conn.commit()
+                conn.close()
+            except sqlite3.IntegrityError:
+                messagebox.showerror("Hata", "Barkod benzersiz olmalıdır.", parent=top)
+                return
+            except Exception as e:
+                messagebox.showerror("Hata", str(e), parent=top)
+                return
+            # Refresh list and prepare for next entry (do not close window)
+            self.refresh()
+            try:
+                e_barcode.delete(0, tk.END)
+                e_name.delete(0, tk.END)
+                e_cost.delete(0, tk.END)
+                e_price.delete(0, tk.END)
+                e_stock.delete(0, tk.END)
+                cb_unit.set("adet")
+                e_barcode.focus_set()
+            except Exception:
+                pass
+
+        ttk.Button(btns, text="Kaydet", command=do_save).pack(side='left')
+        ttk.Button(btns, text="İptal", command=top.destroy).pack(side='left', padx=(8,0))
+
+        try:
+            e_name.focus_set()
+        except Exception:
+            pass
+        try:
+            top.update_idletasks()
+            sw = top.winfo_screenwidth()
+            sh = top.winfo_screenheight()
+            w = max(360, top.winfo_reqwidth() + 32)
+            h = max(260, top.winfo_reqheight() + 32)
+            x = int((sw - w) / 2)
+            y = int((sh - h) / 2)
+            top.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
     def on_show(self, **kwargs) -> None:
         self.controller.title("Kooperatif - Ürün Yönetimi")
         try:
@@ -362,4 +467,3 @@ try:
     ProductsFrame.add_product = _pf_add_product  # type: ignore[attr-defined]
 except Exception:
     pass
-

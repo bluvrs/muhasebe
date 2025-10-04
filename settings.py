@@ -718,6 +718,30 @@ def _settings_show_clear_data_dialog(self):
         dlg.resizable(False, False)
     except Exception:
         pass
+    # Center the dialog on screen
+    # Defer centering until content is laid out to avoid cropping
+    def _center_after_layout():
+        try:
+            dlg.update_idletasks()
+            sw = dlg.winfo_screenwidth()
+            sh = dlg.winfo_screenheight()
+            w = dlg.winfo_width()
+            h = dlg.winfo_height()
+            x = int((sw - w) / 2)
+            y = int((sh - h) / 2)
+            # Only move: keep computed size so buttons remain visible
+            dlg.geometry(f"+{x}+{y}")
+            # Prevent shrinking smaller than content
+            try:
+                dlg.minsize(w, h)
+            except Exception:
+                pass
+        except Exception:
+            pass
+    try:
+        dlg.after(0, _center_after_layout)
+    except Exception:
+        pass
 
     container = tk.Frame(dlg, padx=14, pady=12)
     container.pack(fill='both', expand=True)
@@ -745,7 +769,7 @@ def _settings_show_clear_data_dialog(self):
     tk.Label(container, text=hint, justify='left', fg='#555').pack(anchor='w', pady=(8,6))
 
     btns = tk.Frame(container)
-    btns.pack(fill='x', pady=(6,0))
+    btns.pack(fill='x', pady=(12,0))
 
     def _confirm():
         u = bool(self.var_del_users.get())
@@ -767,8 +791,13 @@ def _settings_show_clear_data_dialog(self):
         except Exception:
             pass
 
-    ttk.Button(btns, text="Sil", command=_confirm, style='Solid.TButton').pack(side='right', padx=(6,0))
-    ttk.Button(btns, text="Iptal", command=lambda: dlg.destroy()).pack(side='right')
+    # Use grid to make buttons equal width
+    btns.columnconfigure(0, weight=1)
+    btns.columnconfigure(1, weight=1)
+    b_cancel = ttk.Button(btns, text="İptal", command=dlg.destroy, style='Solid.TButton')
+    b_delete = ttk.Button(btns, text="Sil", command=_confirm, style='Solid.TButton')
+    b_cancel.grid(row=0, column=0, sticky='ew', padx=(0,6))
+    b_delete.grid(row=0, column=1, sticky='ew', padx=(6,0))
 
 
 def _settings_clear_selected_data(self, *, users: bool, products: bool, sales: bool, ledger: bool, cashbook: bool, bankbook: bool) -> None:

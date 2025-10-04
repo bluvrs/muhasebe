@@ -2,6 +2,7 @@ import sqlite3
 import os
 import sys
 from datetime import datetime
+import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 import tkinter.font as tkfont
@@ -327,6 +328,11 @@ def init_db() -> None:
 class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
+        # Use custom borderless title bar. We'll keep inputs typeable by
+        # aggressively restoring keyboard focus after we enable borderless.
+        # (We avoid disabling borderless because the app relies on the
+        # custom chrome.)
+        self.use_borderless = True
         # Set window icon for packaged exe as well as dev run
         try:
             def _res_path(name: str) -> str:
@@ -374,6 +380,8 @@ class App(tk.Tk):
         self.minsize(800, 600)
         # Start maximized when the app launches
         self._maximize_startup()
+        # Defer enabling borderless chrome until after theme and first frame
+        # are initialized to avoid early focus issues on some platforms.
         # Top menu bar with Help > About
         try:
             menubar = tk.Menu(self)
@@ -415,6 +423,11 @@ class App(tk.Tk):
                 self.saved_base_pt = 12
             try:
                 self.set_min_window_for_scale(self.ui_scale)
+            except Exception:
+                pass
+            # After theme and scale are applied, restyle the custom title bar
+            try:
+                self._style_titlebar()
             except Exception:
                 pass
         except Exception:
@@ -465,6 +478,34 @@ class App(tk.Tk):
         # Wrap messagebox functions so all messages are fixed at call-time
         self._wrap_messagebox_mojibake_fix()
         self.show_frame(LoginFrame)
+        # Now that the initial UI is up with the correct theme and focus,
+        # we could enable borderless chrome if explicitly requested.
+        if getattr(self, 'use_borderless', False):
+            try:
+                self._enable_borderless_chrome()
+                # Restyle titlebar after enabling, and restore focus again
+                self._style_titlebar()
+                # Direct focus explicitly to login username if present
+                try:
+                    fr = self.frames.get(LoginFrame)
+                    if fr is not None and hasattr(fr, 'entry_user'):
+                        try:
+                            # Force focus to the toplevel first, then entry
+                            self.focus_force()
+                        except Exception:
+                            pass
+                        fr.entry_user.focus_force()
+                    else:
+                        self.after(50, self._schedule_focus_restore)
+                except Exception:
+                    self.after(50, self._schedule_focus_restore)
+                # Start a short-lived focus guard to keep inputs typeable
+                try:
+                    self._start_focus_guard(1500)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
     # IMPORTANT: Do not override Tk.__call__ — Tkinter relies on it to call
     # underlying Tcl commands. Overriding it breaks internals and can surface
@@ -492,6 +533,22 @@ class App(tk.Tk):
             top.title('Hakkında')
             top.transient(self)
             top.resizable(True, False)  # genişletilebilir (yatay)
+            try:
+                # When closed, restore focus to the active view (login, etc.)
+                def _on_close():
+                    try:
+                        top.destroy()
+                    except Exception:
+                        pass
+                    try:
+                        self.after(50, self._return_focus_to_active)
+                        self.after(80, lambda: self._start_focus_guard(800))
+                    except Exception:
+                        pass
+                top.protocol('WM_DELETE_WINDOW', _on_close)
+                top.bind('<Destroy>', lambda _e: (self.after(50, self._return_focus_to_active), self.after(80, lambda: self._start_focus_guard(800))))
+            except Exception:
+                pass
             # Try to copy app icon to dialog
             try:
                 png = None
@@ -567,6 +624,361 @@ class App(tk.Tk):
                 top.geometry(f'{w}x{h}+{x}+{y}')
             except Exception:
                 pass
+        except Exception:
+            pass
+
+    def _return_focus_to_active(self) -> None:
+        """Return keyboard focus to the most relevant control on the active view.
+        Prefer the login username entry when on the Login screen."""
+        try:
+            # If an editable widget already has focus, keep it
+            try:
+                w = self.focus_get()
+            except Exception:
+                w = None
+            try:
+                from tkinter import Text as _Text
+                if w is not None and not self._is_titlebar_widget(w) and isinstance(w, (tk.Entry, ttk.Entry, _Text)):
+                    return
+            except Exception:
+                pass
+            cur = getattr(self, 'current_frame_class', None)
+            fr = self.frames.get(cur) if cur in self.frames else None
+        except Exception:
+            fr = None
+        try:
+            # Prefer explicit username entry on Login
+            if fr is not None and getattr(cur, '__name__', '') == 'LoginFrame':
+                ent = getattr(fr, 'entry_user', None)
+                if ent:
+                    try:
+                        self.focus_force()
+                    except Exception:
+                        pass
+                    try:
+                        ent.focus_force()
+                    except Exception:
+                        pass
+                    return
+        except Exception:
+            pass
+        # Fallbacks
+        try:
+            # Try first focusable input in the current frame
+            self._focus_first_entry_in_frame()
+        except Exception:
+            pass
+        try:
+            self.focus_force()
+        except Exception:
+            pass
+
+    def _schedule_focus_restore(self) -> None:
+        """Try restoring focus several times to overcome platform race conditions
+        after popups/menus close under override-redirect."""
+        delays = (10, 80, 160, 320)
+        for d in delays:
+            try:
+                self.after(d, self._return_focus_to_active)
+            except Exception:
+                pass
+
+    def _focus_first_entry_in_frame(self) -> None:
+        try:
+            cur = getattr(self, 'current_frame_class', None)
+            fr = self.frames.get(cur) if cur in self.frames else None
+            if not fr:
+                return
+            # DFS search for first Entry-like widget
+            stack = list(fr.winfo_children())
+            while stack:
+                w = stack.pop(0)
+                try:
+                    if isinstance(w, (tk.Entry, ttk.Entry)):
+                        w.focus_set()
+                        return
+                except Exception:
+                    pass
+                try:
+                    stack.extend(w.winfo_children())
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _is_titlebar_widget(self, w) -> bool:
+        try:
+            if not w:
+                return False
+            tb = getattr(self, '_titlebar', None)
+            if tb is None:
+                return False
+            # Walk up parents to see if this widget lives under titlebar
+            cur = w
+            while cur is not None:
+                if cur is tb:
+                    return True
+                try:
+                    cur = cur.nametowidget(cur.winfo_parent()) if cur.winfo_parent() else None
+                except Exception:
+                    break
+            return False
+        except Exception:
+            return False
+
+    def _start_focus_guard(self, duration_ms: int = 1200) -> None:
+        end_time = time.time() + (duration_ms / 1000.0)
+
+        def _tick():
+            try:
+                if time.time() >= end_time:
+                    return
+                w = None
+                try:
+                    w = self.focus_get()
+                except Exception:
+                    w = None
+                # If focus is missing or on a non-editable widget (or titlebar), refocus
+                bad = False
+                try:
+                    if w is None or self._is_titlebar_widget(w):
+                        bad = True
+                    else:
+                        from tkinter import Text
+                        if not isinstance(w, (tk.Entry, ttk.Entry, Text)):
+                            bad = True
+                except Exception:
+                    bad = True
+                if bad:
+                    self._return_focus_to_active()
+                self.after(60, _tick)
+            except Exception:
+                pass
+
+        try:
+            self.after(30, _tick)
+        except Exception:
+            pass
+
+    def _macos_focus_fix(self) -> None:
+        """Specific fixes for macOS borderless window focus issues."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        # Force initial focus
+        try:
+            self.after(100, self._force_macos_focus)
+        except Exception:
+            pass
+        # Set up more aggressive focus restoration
+        try:
+            self.bind("<Button-1>", self._on_click_restore_focus, add="+")
+        except Exception:
+            pass
+        try:
+            self.bind("<FocusIn>", self._on_focus_in, add="+")
+        except Exception:
+            pass
+        # Menu-specific focus restoration
+        try:
+            if hasattr(self, '_title_menu_btn') and self._title_menu_btn:
+                self._title_menu_btn.bind("<ButtonRelease-1>", self._after_menu_focus, add="+")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def _force_macos_focus(self) -> None:
+        """Force focus to the main window and appropriate input field."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        try:
+            # If an editable widget already has focus, keep it
+            try:
+                w = self.focus_get()
+            except Exception:
+                w = None
+            try:
+                from tkinter import Text as _Text
+                if w is not None and not self._is_titlebar_widget(w) and isinstance(w, (tk.Entry, ttk.Entry, _Text)):
+                    return
+            except Exception:
+                pass
+            # Ensure the window is focused
+            self.focus_force()
+            # Then focus the appropriate input field based on current frame
+            current_frame = getattr(self, 'current_frame_class', None)
+            frame_instance = self.frames.get(current_frame) if current_frame in self.frames else None
+            if frame_instance and hasattr(frame_instance, 'entry_user'):
+                # On login screen, focus username field
+                try:
+                    frame_instance.entry_user.focus_force()
+                    return
+                except Exception:
+                    pass
+            # Otherwise, find first focusable entry
+            self._focus_first_entry_in_frame()
+        except Exception:
+            pass
+
+    def _on_click_restore_focus(self, event) -> None:
+        """Restore focus when user clicks anywhere in the window."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        try:
+            # Only restore if click is not on titlebar widgets
+            w = getattr(event, 'widget', None)
+            from tkinter import Text as _Text
+            if w is not None and (isinstance(w, (tk.Entry, ttk.Entry, _Text))):
+                return
+            if not self._is_titlebar_widget(w):
+                self.after(10, self._force_macos_focus)
+        except Exception:
+            pass
+
+    def _on_focus_in(self, event) -> None:
+        """Handle focus events to ensure inputs remain focusable."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        try:
+            # When window gains focus, ensure inputs are focusable
+            self.after(50, self._ensure_inputs_focusable)
+        except Exception:
+            pass
+
+    def _after_menu_focus(self, event) -> None:
+        """Special focus restoration after menu interactions."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        try:
+            self.after(100, self._force_macos_focus)
+            self.after(500, self._start_extended_focus_guard)
+        except Exception:
+            pass
+
+    def _ensure_inputs_focusable(self) -> None:
+        """Ensure all input fields are in a focusable state."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        try:
+            current_frame = getattr(self, 'current_frame_class', None)
+            frame_instance = self.frames.get(current_frame) if current_frame in self.frames else None
+            if frame_instance:
+                # If we're on Login, aggressively ensure username/password are editable
+                try:
+                    if getattr(current_frame, '__name__', '') == 'LoginFrame':
+                        ent_user = getattr(frame_instance, 'entry_user', None)
+                        ent_pass = getattr(frame_instance, 'entry_pass', None)
+                        if ent_user is not None:
+                            self._force_enable_entry(ent_user)
+                        if ent_pass is not None:
+                            self._force_enable_entry(ent_pass)
+                except Exception:
+                    pass
+                # Re-enable other entry widgets best-effort (non-destructive)
+                for widget in list(frame_instance.winfo_children()):
+                    self._reenable_entry_widgets(widget)
+        except Exception:
+            pass
+
+    def _force_enable_entry(self, widget) -> None:
+        """Force an entry to be editable regardless of prior state (Login only)."""
+        try:
+            # ttk.Entry: use state flags
+            if isinstance(widget, ttk.Entry):
+                try:
+                    widget.state(['!disabled', '!readonly'])
+                except Exception:
+                    pass
+            # tk.Entry: set state to normal
+            elif isinstance(widget, tk.Entry):
+                try:
+                    widget.configure(state='normal')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _reenable_entry_widgets(self, widget) -> None:
+        """Recursively re-enable entry widgets (no-op if disabled)."""
+        try:
+            if isinstance(widget, ttk.Entry):
+                # Non-destructively try to clear disabled state; don't force readonly here
+                try:
+                    if widget.instate(('disabled',)):
+                        widget.state(['!disabled'])
+                except Exception:
+                    pass
+            elif isinstance(widget, tk.Entry):
+                try:
+                    if widget.cget('state') == 'disabled':
+                        widget.configure(state='normal')
+                except Exception:
+                    pass
+            try:
+                widget.update_idletasks()
+            except Exception:
+                pass
+            # Recurse into children if any
+            try:
+                for child in widget.winfo_children():
+                    self._reenable_entry_widgets(child)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _start_extended_focus_guard(self, duration_ms: int = 2000) -> None:
+        """Extended focus guard specifically for macOS menu issues."""
+        try:
+            if sys.platform != 'darwin':
+                return
+        except Exception:
+            return
+        end_time = time.time() + (duration_ms / 1000.0)
+
+        def _tick():
+            try:
+                if time.time() >= end_time:
+                    return
+                # Check if focus is lost or on non-input widgets
+                try:
+                    focused_widget = self.focus_get()
+                except Exception:
+                    focused_widget = None
+                from tkinter import Text as _Text
+                # If already on an editable widget, don't touch it
+                if focused_widget is not None and not self._is_titlebar_widget(focused_widget) and isinstance(focused_widget, (tk.Entry, ttk.Entry, _Text)):
+                    self.after(100, _tick)
+                    return
+                should_refocus = (
+                    focused_widget is None or
+                    self._is_titlebar_widget(focused_widget) or
+                    not isinstance(focused_widget, (tk.Entry, ttk.Entry, _Text))
+                )
+                if should_refocus:
+                    self._force_macos_focus()
+                self.after(100, _tick)
+            except Exception:
+                pass
+
+        try:
+            self.after(50, _tick)
         except Exception:
             pass
 
@@ -759,6 +1171,448 @@ class App(tk.Tk):
             return
         except Exception:
             pass
+        # Fallback: occupy full screen work area
+        try:
+            self.update_idletasks()
+            w = self.winfo_screenwidth()
+            h = self.winfo_screenheight()
+            self.geometry(f"{w}x{h}+0+0")
+        except Exception:
+            pass
+
+    def _enable_borderless_chrome(self) -> None:
+        """Make the main window borderless and add a custom draggable title bar
+        with minimize and close buttons. Keeps the window maximized."""
+        # Enable borderless mode
+        try:
+            self.overrideredirect(True)
+        except Exception:
+            return
+
+        # Title bar container (theme-aware colors applied below)
+        titlebar = tk.Frame(self, highlightthickness=0)
+        try:
+            # Ensure it appears at the very top, above the main container
+            titlebar.pack(fill='x', side='top', before=getattr(self, 'container', None))
+        except Exception:
+            titlebar.pack(fill='x', side='top')
+
+        # Common paddings
+        pad_x = 16
+        gap_x = 12
+
+        # Simple text menu at the far left
+        menu_btn = tk.Label(titlebar, text='☰', cursor='hand2')
+        menu_btn.pack(side='left', padx=(pad_x, 8), pady=8)
+        try:
+            menu_btn.configure(takefocus=0)
+        except Exception:
+            pass
+        def _post_menu(event=None):
+            try:
+                self._ensure_title_popup_menu()
+                # Ensure menu close events will restore focus reliably
+                try:
+                    self._wire_menu_close_focus(self._title_popup_menu)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                # Visual pressed feedback handled by press/release handlers
+                self._title_popup_menu.tk_popup(event.x_root, event.y_root)  # type: ignore[attr-defined]
+            finally:
+                try:
+                    self._title_popup_menu.grab_release()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                # Ensure any global grabs are released and keyboard focus returns
+                try:
+                    self.grab_release()
+                except Exception:
+                    pass
+                try:
+                    # Immediately restore and re-enable inputs, then schedule retries
+                    try:
+                        self._force_macos_focus()
+                    except Exception:
+                        pass
+                    try:
+                        self._ensure_inputs_focusable()
+                    except Exception:
+                        pass
+                    self._schedule_focus_restore()
+                    self._start_focus_guard(800)
+                    # On some WMs, reapplying borderless helps after menu closes
+                    try:
+                        self._reapply_borderless()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+        # Add hover/press color handling to menu label
+        try:
+            menu_btn._normal_fg = getattr(self, '_title_fg', 'black')  # type: ignore[attr-defined]
+            menu_btn._hover_fg = getattr(self, '_title_fg_hover', '#333333')  # type: ignore[attr-defined]
+            menu_btn._pressed_fg = getattr(self, '_title_fg_pressed', '#222222')  # type: ignore[attr-defined]
+            def _m_enter(_e):
+                try:
+                    menu_btn.configure(fg=getattr(menu_btn, '_hover_fg', menu_btn.cget('fg')))
+                except Exception:
+                    pass
+            def _m_leave(_e):
+                try:
+                    menu_btn.configure(fg=getattr(menu_btn, '_normal_fg', menu_btn.cget('fg')))
+                except Exception:
+                    pass
+            def _m_press(_e):
+                try:
+                    menu_btn.configure(fg=getattr(menu_btn, '_pressed_fg', menu_btn.cget('fg')))
+                except Exception:
+                    pass
+            def _m_release(_e):
+                try:
+                    w = menu_btn.winfo_containing(_e.x_root, _e.y_root)
+                    if w is menu_btn:
+                        menu_btn.configure(fg=getattr(menu_btn, '_hover_fg', menu_btn.cget('fg')))
+                        _post_menu(_e)
+                    else:
+                        menu_btn.configure(fg=getattr(menu_btn, '_normal_fg', menu_btn.cget('fg')))
+                except Exception:
+                    pass
+            menu_btn.bind('<Enter>', _m_enter)
+            menu_btn.bind('<Leave>', _m_leave)
+            menu_btn.bind('<ButtonPress-1>', _m_press)
+            menu_btn.bind('<ButtonRelease-1>', _m_release)
+        except Exception:
+            pass
+
+        # Optional app icon (to the right of menu)
+        icon_container = tk.Frame(titlebar, bd=0, highlightthickness=0)
+        icon_container.pack(side='left', padx=(0, 8))
+        self._tb_icon_img = None  # type: ignore[attr-defined]
+        try:
+            png = resource_path('app.png')
+            if os.path.exists(png):
+                img = tk.PhotoImage(file=png)
+                # Downscale if too large for the title bar
+                try:
+                    iw, ih = img.width(), img.height()
+                    if iw > 24 or ih > 24:
+                        fx = max(1, iw // 24)
+                        fy = max(1, ih // 24)
+                        img = img.subsample(fx, fy)
+                except Exception:
+                    pass
+                self._tb_icon_img = img  # keep reference
+                tk.Label(icon_container, image=img, bd=0, highlightthickness=0).pack(side='left')
+        except Exception:
+            pass
+
+        # Title text (label-like; blends with bar)
+        title = tk.Label(titlebar, text=APP_NAME)
+        title.pack(side='left', padx=(8, pad_x), pady=8)
+
+        # Button row (labels behaving like buttons)
+        btn_row = tk.Frame(titlebar, bd=0, highlightthickness=0)
+        btn_row.pack(side='right', padx=pad_x)
+
+        def _mk_text_btn(parent, text, cmd):
+            lbl = tk.Label(parent, text=text, cursor='hand2')
+            # Use widget-local normal/hover fg to avoid stale globals
+            lbl._normal_fg = getattr(self, '_title_fg', 'black')  # type: ignore[attr-defined]
+            lbl._hover_fg = getattr(self, '_title_fg_hover', '#333333')  # type: ignore[attr-defined]
+            lbl._pressed_fg = getattr(self, '_title_fg_pressed', '#222222')  # type: ignore[attr-defined]
+            def on_enter(_e):
+                try:
+                    lbl.configure(fg=getattr(lbl, '_hover_fg', lbl.cget('fg')))
+                except Exception:
+                    pass
+            def on_leave(_e):
+                try:
+                    lbl.configure(fg=getattr(lbl, '_normal_fg', lbl.cget('fg')))
+                except Exception:
+                    pass
+            def on_press(_e):
+                try:
+                    lbl.configure(fg=getattr(lbl, '_pressed_fg', lbl.cget('fg')))
+                except Exception:
+                    pass
+            def on_release(_e):
+                try:
+                    w = lbl.winfo_containing(_e.x_root, _e.y_root)
+                    if w is lbl:
+                        lbl.configure(fg=getattr(lbl, '_hover_fg', lbl.cget('fg')))
+                        try:
+                            cmd()
+                        except Exception:
+                            pass
+                    else:
+                        lbl.configure(fg=getattr(lbl, '_normal_fg', lbl.cget('fg')))
+                except Exception:
+                    pass
+            lbl.bind('<Enter>', on_enter)
+            lbl.bind('<Leave>', on_leave)
+            lbl.bind('<ButtonPress-1>', on_press)
+            lbl.bind('<ButtonRelease-1>', on_release)
+            # Do not take keyboard focus
+            try:
+                lbl.configure(takefocus=0)
+            except Exception:
+                pass
+            return lbl
+
+        # Close at far right; minimize to its left
+        b_close = _mk_text_btn(btn_row, '✕', self.destroy)
+        b_close.pack(side='right', padx=(0, 0), pady=8)
+        b_min = _mk_text_btn(btn_row, '–', self._safe_iconify)
+        # Add explicit space between minimize and close
+        b_min.pack(side='right', padx=(0, gap_x), pady=8)
+        # Avoid stealing keyboard focus from content widgets
+        try:
+            for w in (titlebar, title, btn_row, b_close, b_min, icon_container):
+                w.configure(takefocus=0)
+            # Keep references for theming/dragging
+            self._titlebar = titlebar            # type: ignore[attr-defined]
+            self._title_label = title            # type: ignore[attr-defined]
+            self._title_min = b_min              # type: ignore[attr-defined]
+            self._title_close = b_close          # type: ignore[attr-defined]
+            self._title_menu_btn = menu_btn      # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        # Drag to move
+        pos = {"x": 0, "y": 0}
+
+        def _start(e):
+            pos["x"], pos["y"] = e.x, e.y
+
+        def _drag(e):
+            try:
+                self.geometry(f"+{self.winfo_x() + e.x - pos['x']}+{self.winfo_y() + e.y - pos['y']}")
+            except Exception:
+                pass
+
+        for w in (titlebar, title):
+            w.bind('<Button-1>', _start)
+            w.bind('<B1-Motion>', _drag)
+
+        # Hover colors are handled by per-widget enter/leave bindings; avoid
+        # global motion hooks which can interfere with focus on some platforms.
+
+        # Keep maximized size in borderless mode and make sure app has focus
+        try:
+            self.update_idletasks()
+            w = self.winfo_screenwidth()
+            h = self.winfo_screenheight()
+            self.geometry(f"{w}x{h}+0+0")
+            self.minsize(w, h)
+            # Activate window and directly focus the active frame's best input
+            try:
+                # Topmost toggle helps the WM activate the window in OR mode
+                self.attributes('-topmost', True)
+                self.attributes('-topmost', False)
+                # Force window focus, then reinforce on the active entry
+                try:
+                    self.focus_force()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            # Directly focus the active frame's best input (e.g., login username)
+            try:
+                cur = getattr(self, 'current_frame_class', None)
+                fr = self.frames.get(cur) if cur in self.frames else None
+                ent = getattr(fr, 'entry_user', None) if fr is not None else None
+                if ent:
+                    try:
+                        ent.focus_force()
+                    except Exception:
+                        pass
+                else:
+                    self.after(50, self._schedule_focus_restore)
+            except Exception:
+                self.after(50, self._schedule_focus_restore)
+        except Exception:
+            pass
+
+        # On some platforms, deiconify drops overrideredirect; reapply
+        try:
+            self.bind('<Map>', lambda _e: self._reapply_borderless())
+        except Exception:
+            pass
+
+        # Apply initial title bar styling based on theme
+        try:
+            self._style_titlebar()
+        except Exception:
+            pass
+        # Start a short-lived guard to keep focus stable after enabling
+        try:
+            self._start_focus_guard(1500)
+        except Exception:
+            pass
+
+        # Enhanced macOS focus handling
+        try:
+            self._macos_focus_fix()
+        except Exception:
+            pass
+
+    def _safe_iconify(self) -> None:
+        """Minimize even when in override-redirect (borderless) mode by
+        temporarily disabling it, then iconifying. Reapplied on <Map>."""
+        if not getattr(self, 'use_borderless', False):
+            try:
+                self.iconify()
+            except Exception:
+                pass
+            return
+        try:
+            self.overrideredirect(False)
+        except Exception:
+            pass
+        try:
+            self.iconify()
+        except Exception:
+            # If iconify fails, reapply borderless immediately
+            try:
+                self._reapply_borderless()
+            except Exception:
+                pass
+
+    def _reapply_borderless(self) -> None:
+        if not getattr(self, 'use_borderless', False):
+            return
+        try:
+            self.overrideredirect(True)
+        except Exception:
+            pass
+        # Ensure we keep maximized/fullscreen-like geometry
+        try:
+            self.update_idletasks()
+            w = self.winfo_screenwidth()
+            h = self.winfo_screenheight()
+            self.geometry(f"{w}x{h}+0+0")
+        except Exception:
+            pass
+        # Re-apply titlebar colors for current theme after remap
+        try:
+            self._style_titlebar()
+        except Exception:
+            pass
+        # Nudge focus back to UI after restore
+        try:
+            try:
+                self.focus_force()
+            except Exception:
+                pass
+            self._schedule_focus_restore()
+            self._start_focus_guard(1000)
+        except Exception:
+            pass
+
+    def _ensure_title_popup_menu(self) -> None:
+        try:
+            if hasattr(self, '_title_popup_menu') and self._title_popup_menu:  # type: ignore[attr-defined]
+                return
+        except Exception:
+            pass
+        m = tk.Menu(self, tearoff=False)
+        m.add_command(label='Hakkında…', command=self.show_about)
+        m.add_separator()
+        m.add_command(label='Simge Durumuna Küçült', command=self.iconify)
+        m.add_command(label='Çıkış', command=self.destroy)
+        self._title_popup_menu = m  # type: ignore[attr-defined]
+        # Bind close/unmap to restore focus strongly
+        try:
+            self._wire_menu_close_focus(m)
+        except Exception:
+            pass
+
+    def _wire_menu_close_focus(self, menu: tk.Menu) -> None:
+        """Bind menu close/unmap events to restore focus and reapply borderless."""
+        try:
+            def _after_close(_e=None):
+                try:
+                    # Reapply OR on some platforms to regain focusability
+                    try:
+                        self._reapply_borderless()
+                    except Exception:
+                        pass
+                    # Force and guard focus back to inputs
+                    try:
+                        self._force_macos_focus()
+                    except Exception:
+                        pass
+                    self._schedule_focus_restore()
+                    self._start_focus_guard(1000)
+                except Exception:
+                    pass
+            # Unmap (menu dismissed), FocusOut (lost focus), Escape to close
+            try:
+                menu.bind('<Unmap>', _after_close, add='+')
+            except Exception:
+                pass
+            try:
+                menu.bind('<FocusOut>', _after_close, add='+')
+            except Exception:
+                pass
+            try:
+                menu.bind('<Escape>', _after_close, add='+')
+            except Exception:
+                pass
+            # Also after any click inside menu (selection), when released
+            try:
+                menu.bind('<ButtonRelease-1>', _after_close, add='+')
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _style_titlebar(self) -> None:
+        """Apply theme-aware colors to the custom title bar and its controls."""
+        tb = getattr(self, '_titlebar', None)
+        if not tb:
+            return
+        theme = getattr(self, 'saved_theme', 'light') or 'light'
+        t = str(theme).lower()
+        if 'dark' in t:
+            bar_bg = '#1e2023'
+            fg = 'white'
+            fg_hover = '#d0d0d0'
+            fg_pressed = '#bbbbbb'
+        else:
+            bar_bg = 'white'
+            fg = 'black'
+            fg_hover = '#333333'
+            fg_pressed = '#000000'
+        self._title_fg = fg
+        self._title_fg_hover = fg_hover
+        self._title_fg_pressed = fg_pressed
+        try:
+            tb.configure(bg=bar_bg)
+            for w in (getattr(self, '_title_label', None), getattr(self, '_title_min', None), getattr(self, '_title_close', None), getattr(self, '_title_menu_btn', None)):
+                if w:
+                    w.configure(bg=bar_bg, fg=fg)
+                    # Update per-widget normal/hover colors
+                    try:
+                        w._normal_fg = fg  # type: ignore[attr-defined]
+                        w._hover_fg = fg_hover  # type: ignore[attr-defined]
+                        w._pressed_fg = fg_pressed  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+            if hasattr(self, '_tb_icon_img'):
+                for ch in tb.winfo_children():
+                    try:
+                        if isinstance(ch, tk.Frame):
+                            ch.configure(bg=bar_bg)
+                            for cc in ch.winfo_children():
+                                try:
+                                    cc.configure(bg=bar_bg)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
     def _load_ui_settings(self):
         try:
@@ -796,6 +1650,11 @@ class App(tk.Tk):
             scale=getattr(self, 'ui_scale', 1.5),
             base_pt=getattr(self, 'saved_base_pt', 12),
         )
+        # Re-style custom titlebar to blend with theme
+        try:
+            self._style_titlebar()
+        except Exception:
+            pass
         # Now, after theme applied and recoloring, notify all frames of theme change
         try:
             for frame in self.frames.values():
@@ -981,7 +1840,11 @@ class LoginFrame(tk.Frame):
         try:
             self.entry_user.delete(0, tk.END)
             self.entry_pass.delete(0, tk.END)
-            self.entry_user.focus_set()
+            try:
+                self.controller.focus_force()
+            except Exception:
+                pass
+            self.entry_user.focus_force()
         except Exception:
             pass
 

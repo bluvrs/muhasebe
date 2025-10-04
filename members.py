@@ -81,20 +81,26 @@ class MembersFrame(tk.Frame):
             ('settings', 'Ayarlar'),
             ('db', 'Veri Tabani islemleri'),
         ]
-        row = 0
-        col = 0
+        # Build checkbuttons; we'll position them responsively in _relayout_perm_checks
         for k, label in keys:
             var = tk.BooleanVar(value=True)
             cb = tk.Checkbutton(perm_box, text=label, variable=var)
-            cb.grid(row=row, column=col, sticky='w', padx=8, pady=4)
+            # Place temporarily; real positions are computed on resize
+            cb.grid(row=0, column=0, sticky='w', padx=8, pady=4)
             self._perm_vars[k] = var
             self._perm_checks.append(cb)
-            col += 1
-            if col >= 4:
-                col = 0
-                row += 1
         self.btn_save_perms = ttk.Button(perm_box, text="Yetkileri Kaydet", command=self.save_permissions)
-        self.btn_save_perms.grid(row=row+1, column=0, sticky='w', padx=8, pady=(6, 4))
+        # Temporary placement; will be moved by layout function
+        self.btn_save_perms.grid(row=1, column=0, sticky='w', padx=8, pady=(6, 4))
+
+        # Bind a responsive layout that wraps checkboxes to next row based on width
+        self._perm_box = perm_box
+        try:
+            self._perm_box.bind('<Configure>', self._relayout_perm_checks)
+            # Schedule initial layout after widget sizes are computed
+            self.after(0, self._relayout_perm_checks)
+        except Exception:
+            pass
         # Start disabled until a user is selected
         try:
             self._set_perm_controls_enabled(False)
@@ -405,3 +411,45 @@ class MembersFrame(tk.Frame):
         conn.close()
         self.entry_password.delete(0, tk.END)
         messagebox.showinfo("Tamam", "Sifre guncellendi.")
+
+    # --- Layout helpers ---
+    def _relayout_perm_checks(self, _event=None) -> None:
+        """Lay out permission checkboxes left-to-right and wrap to next row
+        when the available width is exceeded. Keeps a small padding between items.
+        """
+        try:
+            box = getattr(self, '_perm_box', None)
+            if not box:
+                return
+            avail = box.winfo_width()
+            # During initial geometry, width may be 1; skip until realized
+            if avail <= 1:
+                return
+            padx = 8
+            pady = 4
+            row = 0
+            col = 0
+            used_width = 0
+            # Clear any weight to avoid unexpected stretching
+            for i in range(0, 50):
+                try:
+                    box.grid_columnconfigure(i, weight=0)
+                except Exception:
+                    break
+            for cb in self._perm_checks:
+                # Requested width including padding
+                req = cb.winfo_reqwidth() + (padx * 2)
+                if col > 0 and (used_width + req) > avail:
+                    # wrap
+                    row += 1
+                    col = 0
+                    used_width = 0
+                cb.grid_configure(row=row, column=col, padx=padx, pady=pady, sticky='w')
+                used_width += req
+                col += 1
+            # Place save button on the next row
+            if hasattr(self, 'btn_save_perms'):
+                self.btn_save_perms.grid_configure(row=row + 1, column=0, sticky='w', padx=8, pady=(6, 4))
+        except Exception:
+            # Best-effort; ignore layout errors
+            pass
