@@ -131,7 +131,7 @@ class SettingsFrame(tk.Frame):
                     pass
                 card.configure(width=req_w, height=height)
             except Exception:
-                # Ã–lÃ§üm baÅŸarısız olursa güvenli bir yükseklik kullan
+                # Ã–lçüm baÅŸarısız olursa güvenli bir yükseklik kullan
                 card.configure(width=min_w, height=200)
         name_holder = tk.Frame(tab_name)
         name_holder.pack(fill='x', padx=20, pady=(10, 4))
@@ -556,7 +556,7 @@ class SettingsFrame(tk.Frame):
             conn.close()
         except Exception:
             pass
-        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme Ã§aÄŸır
+        # Anında uygula: önce controller kayıtlarını güncelle, sonra refresh_theme çaÄŸır
         try:
             try:
                 scale_val = float(self.var_scale.get()) if hasattr(self, 'var_scale') else getattr(self.controller, 'saved_scale', 1.5)
@@ -665,7 +665,7 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         # Only update status message at the end
-        self.status_var.set(f"Ã–lÃ§ek uygulandı: {scale_val}x")
+        self.status_var.set(f"Ã–lçek uygulandı: {scale_val}x")
 
     def on_base_pt_change(self) -> None:
         # Persist and apply base font point size.
@@ -714,7 +714,7 @@ class SettingsFrame(tk.Frame):
         except Exception:
             pass
         # Avoid re-showing the screen to prevent refresh loops/blinking
-        self.status_var.set(f"Temel yazı: {new_base} pt, ölÃ§ek: {new_scale}x")
+        self.status_var.set(f"Temel yazı: {new_base} pt, ölçek: {new_scale}x")
 
     # --- DB Utils ---
     def backup_db(self) -> None:
