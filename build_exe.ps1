@@ -193,6 +193,9 @@ function Install-Tools {
     } else {
         & $venvPy -m pip install --upgrade pyinstaller
     }
+    # Ensure reportlab is installed (for PDF generation, if used)
+    try { & $venvPy -m pip show reportlab > $null 2>&1 } catch {}
+    if ($LASTEXITCODE -ne 0) { & $venvPy -m pip install --upgrade reportlab }
     # Optional dependency used in investors screen (collected if present)
     try { & $venvPy -m pip show tkcalendar > $null 2>&1 } catch {}
 }
@@ -202,7 +205,7 @@ function New-Exe {
         [string]$VenvDir,
         [string]$BuildArch
     )
-    $name = 'Muhasebe'
+    $name = 'Kooperatif'
     $commonArgs = @(
         '--noconfirm',
         '--clean',
@@ -236,14 +239,6 @@ function New-Exe {
     # Ensure all local scripts (modules) are included (hidden imports)
     try {
         $pyFiles = Get-ChildItem -File -Filter '*.py' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
-        foreach ($f in $pyFiles) {
-            $mod = [System.IO.Path]::GetFileNameWithoutExtension($f)
-            if ($mod -and ($mod -ne 'main')) {
-                $commonArgs += @('--hidden-import', $mod)
-            }
-        }
-        # Only add optional third-party hidden imports if installed in venv
-        $optMods = @('tkcalendar')
         foreach ($m in $optMods) {
             try {
                 $venvPy = Join-Path $VenvDir 'Scripts\python'
@@ -316,6 +311,7 @@ try {
     Write-Host "[x] Build failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
+
 
 
 
