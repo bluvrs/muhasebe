@@ -558,6 +558,10 @@ class SalesFrame(tk.Frame):
             self.cart.delete(iid)
         self._recalc_total()
         self.status_var.set("")
+        try:
+            self.entry_scan.focus_set()
+        except Exception:
+            pass
 
     def _adjust_selected_qty(self, delta: float) -> None:
         sel = self.cart.selection()
@@ -579,6 +583,10 @@ class SalesFrame(tk.Frame):
             self.cart.delete(iid)
             self._recalc_total()
             self.status_var.set("")
+            try:
+                self.entry_scan.focus_set()
+            except Exception:
+                pass
             return
         prod = self._get_product_by_id(pid)
         if not prod:
@@ -598,6 +606,10 @@ class SalesFrame(tk.Frame):
         self.cart.item(iid, values=tuple(vals))
         self._recalc_total()
         self.status_var.set("")
+        try:
+            self.entry_scan.focus_set()
+        except Exception:
+            pass
 
     def _sync_paid_with_total(self, total: float) -> None:
         try:
@@ -650,6 +662,10 @@ class SalesFrame(tk.Frame):
             self.cart.delete(iid)
         self._recalc_total()
         self.status_var.set("")
+        try:
+            self.entry_scan.focus_set()
+        except Exception:
+            pass
 
     def _clear_scan(self) -> None:
         try:
@@ -757,6 +773,10 @@ class SalesFrame(tk.Frame):
         self.entry_paid.delete(0, tk.END)
         self.status_var.set(f"Satış tamamlandı. Ödenen: {paid:.2f}, Paraüstü: {change:.2f}")
         self._update_change()
+        try:
+            self.entry_scan.focus_set()
+        except Exception:
+            pass
 
 
 class ReturnFrame(tk.Frame):
